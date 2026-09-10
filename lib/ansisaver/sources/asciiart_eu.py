@@ -267,10 +267,11 @@ class AsciiArtEu(Provider):
         for c in self._cards(rel):
             if c["id"] == cid:
                 text = c["text"] + "\n"
-                name = re.sub(r"[^a-z0-9]+", "-", (c["title"] or cid).lower()).strip("-") or cid
+                title = c["title"] or (rel.split("/")[-1].replace("-", " ") + " (untitled)")
+                name = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-") or cid
                 likes, views = int(c.get("likes") or 0), int(c.get("views") or 0)
                 return Fetched(data=text.encode("utf-8"), filename=f"{name}-{cid[:6]}.txt",
-                               credits=Credits(title=c["title"], author=c["artist"] if c["artist"] and c["artist"].lower() != "unknown" else "", tags=rel.split("/")),
+                               credits=Credits(title=title, author=c["artist"] if c["artist"] and c["artist"].lower() != "unknown" else "", tags=rel.split("/")),
                                source_url=f"{BASE}/{rel}", license_note=self.license_note, encoding_hint="utf8",
                                rating={"likes": likes, "views": views, "score": self.score(likes, views)})
         raise SourceError(f"piece {cid} not found on {rel}")
