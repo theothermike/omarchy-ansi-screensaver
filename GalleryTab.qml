@@ -176,7 +176,7 @@ Item {
         height: parent.height
         clip: true
         cellWidth: Style.space(226)
-        cellHeight: Style.space(198)
+        cellHeight: Style.space(224)
         cacheBuffer: cellHeight * 2
         boundsBehavior: Flickable.StopAtBounds
         model: tab.rows
@@ -297,7 +297,7 @@ Item {
 
         Rectangle {
           width: parent.width
-          height: parent.height - titleText.height - creditText.height - Style.spacing.xxs * 2
+          height: parent.height - titleText.height - creditText.height - actionRow.height - Style.spacing.xxs * 3
           color: "#000000"
           radius: Style.cornerRadius / 2
           clip: true
@@ -340,6 +340,37 @@ Item {
         }
         Text { id: titleText; width: parent.width; text: cardRoot.piece.title; color: tab.foreground; font.family: Style.font.family; font.pixelSize: Style.font.bodySmall; elide: Text.ElideRight }
         Text { id: creditText; width: parent.width; text: Model.credits(cardRoot.piece); color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption; elide: Text.ElideRight }
+
+        // quick actions, always visible: preview · star · enable · remove
+        Row {
+          id: actionRow
+          width: parent.width
+          height: Style.space(22)
+          spacing: Style.spacing.xs
+          PanelActionButton {
+            iconText: "▶"; tooltipText: "preview on screen"; size: Style.space(22); fontSize: Style.font.bodySmall
+            foreground: tab.muted; hoverColor: tab.accent
+            onClicked: tab.preview(cardRoot.piece)
+          }
+          PanelActionButton {
+            iconText: cardRoot.piece.favorite ? "★" : "☆"; tooltipText: cardRoot.piece.favorite ? "unstar" : "star (favourites play more often)"
+            size: Style.space(22); fontSize: Style.font.body
+            foreground: cardRoot.piece.favorite ? tab.accent : tab.muted; hoverColor: tab.accent
+            onClicked: tab.toggleFavorite(cardRoot.piece)
+          }
+          PanelActionButton {
+            iconText: cardRoot.piece.enabled ? "●" : "○"; tooltipText: cardRoot.piece.enabled ? "enabled — click to skip in the slideshow" : "disabled — click to enable"
+            size: Style.space(22); fontSize: Style.font.bodySmall
+            foreground: cardRoot.piece.enabled ? tab.foreground : Color.urgent; hoverColor: tab.accent
+            onClicked: tab.toggleEnabled(cardRoot.piece)
+          }
+          Item { width: parent.width - Style.space(22) * 4 - Style.spacing.xs * 4; height: 1 }
+          PanelActionButton {
+            iconText: "✕"; tooltipText: "remove from the library"; size: Style.space(22); fontSize: Style.font.bodySmall
+            foreground: tab.muted; hoverColor: Color.urgent
+            onClicked: tab.remove(cardRoot.piece)
+          }
+        }
       }
 
       MouseArea {
