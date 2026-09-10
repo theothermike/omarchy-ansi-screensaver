@@ -97,6 +97,10 @@ Item {
       FieldRow { label: "Plain ASCII colouring"; description: "how uncoloured pieces are tinted"; foreground: tab.foreground; muted: tab.muted
         ButtonGroup { options: [{ value: "theme-gradient", label: "Theme gradient" }, { value: "theme-foreground", label: "Theme fg" }, { value: "vga-grey", label: "VGA grey" }]; value: tab.get("ascii_color", "theme-gradient"); foreground: tab.foreground; accent: tab.accent; onChanged: function(v) { tab.set("ascii_color", v) } } }
 
+      PanelSectionHeader { text: "Gallery"; foreground: tab.muted }
+      FieldRow { label: "Confirm before removing"; description: "off = the ✕ on a card and the Delete key remove a piece immediately"; foreground: tab.foreground; muted: tab.muted
+        ToggleSwitch { checked: tab.get("confirm_remove", true) === true; foreground: tab.foreground; accent: tab.accent; onToggled: tab.set("confirm_remove", !(tab.get("confirm_remove", true) === true)) } }
+
       PanelSectionHeader { text: "Display"; foreground: tab.muted }
       FieldRow { label: "Columns"; description: "terminal width the font is sized for; 80 = classic, auto = widest enabled piece"; foreground: tab.foreground; muted: tab.muted
         ButtonGroup { options: [{ value: "80", label: "80" }, { value: "100", label: "100" }, { value: "132", label: "132" }, { value: "auto", label: "auto" }]; value: String(tab.get("columns", 80)); foreground: tab.foreground; accent: tab.accent; onChanged: function(v) { tab.set("columns", v === "auto" ? "auto" : parseInt(v)) } } }

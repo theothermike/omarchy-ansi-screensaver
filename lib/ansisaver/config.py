@@ -40,6 +40,7 @@ DEFAULTS: dict[str, Any] = {
     "caption_position": "br",      # br | tr | bl | tl
     "ascii_color": "theme-gradient",  # theme-gradient | theme-foreground | vga-grey
     "include_branding": 0,         # show branding art every N slides (0 = never)
+    "confirm_remove": True,        # gallery: ask before removing a piece
     "reveal": {"ttfx": 70, "baud": 30},
     "ttfx": {"existing_color_handling": "always", "frame_rate_scale": 1.0, "max_seconds": 15,
              "effects": dict(DEFAULT_EFFECTS)},
@@ -174,7 +175,7 @@ def validate(key: str, value: Any) -> Any:
         lo, hi = RANGES[key]
         if not isinstance(value, (int, float)) or isinstance(value, bool) or not (lo <= value <= hi):
             raise ConfigError(f"{key}: expected a number in {lo}..{hi}")
-    if key in ("caption", "idle.takeover", "baud.show_cursor", "track_shown") and not isinstance(value, bool):
+    if key in ("caption", "idle.takeover", "baud.show_cursor", "track_shown", "confirm_remove") and not isinstance(value, bool):
         raise ConfigError(f"{key}: expected true/false")
     if key.startswith("ttfx.effects.") or key.startswith("transitions.out."):
         if not isinstance(value, (int, float)) or value < 0:

@@ -68,11 +68,13 @@ Item {
   function toggleFavorite(p) { if (p && tab.service) { tab.service.libraryAction(p.favorite ? "unfavorite" : "favorite", p.id); tab.overlay.status((p.favorite ? "unstarred " : "starred ") + p.title) } }
   function remove(p) {
     if (!p || !tab.overlay) return
-    tab.overlay.confirm("Remove “" + p.title + "” from the library?", function() {
+    var doRemove = function() {
       tab.service.libraryAction("remove", p.id)
       tab.overlay.status("removed " + p.title)
       if (tab.previewItem && tab.previewItem.id === p.id) tab.previewItem = null
-    })
+    }
+    if (Model.get(tab.overlay.config, "confirm_remove", true) === false) doRemove()
+    else tab.overlay.confirm("Remove “" + p.title + "” from the library?", doRemove)
   }
   function handleKey(event) {
     var k = event.key
