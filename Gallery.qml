@@ -38,6 +38,7 @@ Item {
   readonly property var config: service ? service.config : ({})
 
   function status(msg) { root.statusText = msg || "" }
+  function focusKeys() { keyCatcher.forceActiveFocus() }
 
   // --- lifecycle --------------------------------------------------------
   function open(payloadJson) {

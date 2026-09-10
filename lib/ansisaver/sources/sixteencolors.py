@@ -62,11 +62,30 @@ class SixteenColors(Provider):
         nxt = page + 1 if pg.get("pages") and page < int(pg["pages"]) else None
         return self.listing(path, entries, self._crumbs(path), next_page=nxt)
 
+    def _search(self, search: str, path, page: int):
+        """The API's `filter` is a fuzzy match where '-' and '_' act as
+        wildcards (a hyphenated pack name returns every pack), so ask for the
+        longest word and narrow the result to names containing every token."""
+        import re
+        tokens = [t for t in re.split(r"[^a-z0-9]+", search.lower()) if t]
+        if not tokens:
+            return self.listing(path, [], [f"search: {search}"])
+        key = max(tokens, key=len)
+        j = self.http.get_json(f"{API}/pack/?filter={urllib.parse.quote(key)}&pagesize=500&page=1", ttl=86400)
+        results = [p for p in (j.get("results") or []) if isinstance(p, dict)
+                   and all(t in str(p.get("name") or "").lower() for t in tokens)]
+        entries = [self._pack_entry(p) for p in results]
+        start = (page - 1) * PAGE
+        chunk = entries[start:start + PAGE]
+        nxt = page + 1 if start + PAGE < len(entries) else None
+        total = int((j.get("page") or {}).get("total") or 0)
+        notice = f"{len(entries)} packs match" + (" (first 500 checked)" if total > 500 else "")
+        return self.listing(path, chunk, [f"search: {search}"], next_page=nxt, notice=notice)
+
     def list(self, path, search, page):
         seg = path[-1] if path else ""
         if search and not path:
-            q = urllib.parse.quote(search)
-            return self._packs_page(f"{API}/pack/?filter={q}&pagesize={PAGE}&page={page}", path, page)
+            return self._search(search, path, page)
         if seg == "":
             return self.listing(path, [
                 Entry("collection", "years", "By year", "every artpack since 1990"),

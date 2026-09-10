@@ -28,8 +28,13 @@ Item {
   property bool busy: false
   property bool addOpen: false
   property string addKind: "github_repo"
+  property int browseSeq: 0
   property var pageCache: ({})
   property var previewCache: ({})
+  // Per-item UI state lives in side maps so the grid's model array (and with
+  // it the scroll position) is never replaced just to mark one card.
+  property var addingIds: ({})
+  property var localPngs: ({})
   readonly property var source: {
     for (var i = 0; i < tab.sources.length; i++) if (tab.sources[i].id === tab.sourceId) return tab.sources[i]
     return null
@@ -61,12 +66,14 @@ Item {
     var cached = tab.pageCache[key]
     if (cached) { tab.applyListing(cached, append); return }
     tab.busy = true
+    var seq = ++tab.browseSeq
     var args = ["browse", "--source", tab.sourceId]
     for (var i = 0; i < segs.length; i++) args.push("--path", segs[i])
     if (q) args.push("--search", q)
     args.push("--page", String(pg), "--json")
     var mySource = tab.sourceId
     tab.service.runCli(args, { reloadAfter: false, onDone: function(rc, out) {
+      if (seq !== tab.browseSeq) return            // superseded by a later navigation
       tab.busy = false
       if (mySource !== tab.sourceId) return
       var listing = null
@@ -80,9 +87,21 @@ Item {
     tab.listing = listing
     tab.crumbs = listing.breadcrumbs || []
     var list = listing.entries || []
-    tab.entries = append ? tab.entries.concat(list) : list
-    if (!append) { grid.currentIndex = 0; grid.positionViewAtBeginning() }
+    if (append) {
+      var y = grid.contentY, idx = grid.currentIndex
+      tab.entries = tab.entries.concat(list)
+      Qt.callLater(function() { grid.contentY = y; grid.currentIndex = idx })
+    } else {
+      tab.entries = list
+      grid.currentIndex = 0
+      grid.positionViewAtBeginning()
+    }
     if (listing.notice) tab.status(listing.notice)
+  }
+  function setAdding(id, on) {
+    var m = Object.assign({}, tab.addingIds)
+    if (on) m[id] = true; else delete m[id]
+    tab.addingIds = m
   }
   function enter(entry) {
     if (!entry) return
@@ -102,9 +121,11 @@ Item {
       return
     }
     if (tab.libraryIdFor(entry)) { tab.status("already in the library"); return }
-    var e = tab.entries.slice(); for (var i = 0; i < e.length; i++) if (e[i].id === entry.id) e[i] = Object.assign({}, e[i], { adding: true }); tab.entries = e
+    if (tab.addingIds[entry.id]) return
+    tab.setAdding(entry.id, true)
+    tab.status("adding " + entry.label + "…")
     tab.service.runCli(["add", "--source", tab.sourceId, "--entry", entry.id, "--json"], { onDone: function(rc, out) {
-      var e2 = tab.entries.slice(); for (var j = 0; j < e2.length; j++) if (e2[j].id === entry.id) e2[j] = Object.assign({}, e2[j], { adding: false }); tab.entries = e2
+      tab.setAdding(entry.id, false)
       tab.status(rc === 0 ? "added " + entry.label : "add failed: " + String(out).slice(0, 100))
     } })
   }
@@ -119,7 +140,7 @@ Item {
         if (res.error) { tab.status(res.error); return }
         var c = tab.previewCache; c[key] = res; tab.previewCache = c
         tab.previewItem = Object.assign({}, entry, res)
-        var e = tab.entries.slice(); for (var i = 0; i < e.length; i++) if (e[i].id === entry.id) e[i] = Object.assign({}, e[i], { local_png: res.png }); tab.entries = e
+        if (res.png) { var m = Object.assign({}, tab.localPngs); m[key] = res.png; tab.localPngs = m }
         tab.status("")
       } catch (err) { tab.status("preview failed") }
     } })
@@ -223,7 +244,9 @@ Item {
           width: Style.space(200)
           placeholderText: "search " + (tab.source ? tab.source.name : "") + "…"
           foreground: tab.foreground; accent: tab.accent
-          onAccepted: { tab.search = text; tab.browse([], text, 1, false) }
+          // Return runs the search and hands the keyboard back to the grid so
+          // Enter / arrows / `a` act on the results, not on the text.
+          onAccepted: { tab.search = text; tab.browse([], text, 1, false); if (tab.overlay) tab.overlay.focusKeys() }
           Keys.onEscapePressed: function(event) { if (text !== "") { text = ""; tab.search = ""; tab.browse([], "", 1, false) } else if (tab.overlay) tab.overlay.dismiss(); event.accepted = true }
         }
         Text { anchors.verticalCenter: parent.verticalCenter; text: tab.busy ? "loading…" : (tab.entries.length + " entries"); color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
@@ -288,6 +311,8 @@ Item {
     readonly property var entry: modelData
     readonly property bool current: grid.currentIndex === index
     readonly property string inLibrary: entry.type === "item" ? tab.libraryIdFor(entry) : ""
+    readonly property bool adding: !!tab.addingIds[entry.id]
+    readonly property string localPng: tab.localPngs[tab.sourceId + "|" + entry.id] || ""
     width: grid.cellWidth
     height: grid.cellHeight
 
@@ -319,14 +344,14 @@ Item {
           }
           Image {
             anchors.fill: parent; anchors.margins: Style.spacing.xxs
-            visible: cardRoot.entry.type === "item" && (!!cardRoot.entry.local_png || !!cardRoot.entry.thumb_url)
-            source: cardRoot.entry.local_png ? Model.fileUrl(cardRoot.entry.local_png) : (cardRoot.entry.thumb_url || "")
+            visible: cardRoot.entry.type === "item" && (cardRoot.localPng !== "" || !!cardRoot.entry.thumb_url)
+            source: cardRoot.localPng !== "" ? Model.fileUrl(cardRoot.localPng) : (cardRoot.entry.thumb_url || "")
             asynchronous: true; cache: true; fillMode: Image.PreserveAspectFit; verticalAlignment: Image.AlignTop
             sourceSize.width: Math.round(width * Screen.devicePixelRatio); smooth: true
           }
           Text {
             anchors.fill: parent; anchors.margins: Style.spacing.xs
-            visible: cardRoot.entry.type === "item" && !cardRoot.entry.local_png && !cardRoot.entry.thumb_url && !!cardRoot.entry.text_preview
+            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && !cardRoot.entry.thumb_url && !!cardRoot.entry.text_preview
             text: cardRoot.entry.text_preview || ""
             textFormat: Text.PlainText
             color: tab.foreground
@@ -335,7 +360,7 @@ Item {
           }
           Button {
             anchors.centerIn: parent
-            visible: cardRoot.entry.type === "item" && !cardRoot.entry.local_png && !cardRoot.entry.thumb_url && !cardRoot.entry.text_preview
+            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && !cardRoot.entry.thumb_url && !cardRoot.entry.text_preview
             text: "Preview"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
             onClicked: tab.previewEntry(cardRoot.entry)
           }
@@ -353,9 +378,9 @@ Item {
           height: Style.space(22)
           Button {
             visible: cardRoot.entry.type === "item"
-            text: cardRoot.inLibrary !== "" ? "added ✓" : (cardRoot.entry.adding ? "adding…" : "Add")
+            text: cardRoot.inLibrary !== "" ? "added ✓" : (cardRoot.adding ? "adding…" : "Add")
             bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
-            enabled: cardRoot.inLibrary === "" && !cardRoot.entry.adding
+            enabled: cardRoot.inLibrary === "" && !cardRoot.adding
             onClicked: tab.add(cardRoot.entry)
           }
           Button {
@@ -376,7 +401,7 @@ Item {
         hoverEnabled: true
         onClicked: grid.currentIndex = cardRoot.index
         onDoubleClicked: tab.enter(cardRoot.entry)
-        onEntered: { if (cardRoot.entry.type === "item" && (cardRoot.entry.thumb_url || cardRoot.entry.image_url || cardRoot.entry.local_png)) tab.previewItem = Object.assign({}, cardRoot.entry, tab.previewCache[tab.sourceId + "|" + cardRoot.entry.id] || {}) }
+        onEntered: { if (cardRoot.entry.type === "item" && (cardRoot.entry.thumb_url || cardRoot.entry.image_url || cardRoot.localPng !== "")) tab.previewItem = Object.assign({}, cardRoot.entry, tab.previewCache[tab.sourceId + "|" + cardRoot.entry.id] || {}) }
       }
     }
   }

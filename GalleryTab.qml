@@ -21,9 +21,30 @@ Item {
   property string sortKey: "added"
   property bool importOpen: false
   property var previewItem: null
-  readonly property var rows: Model.filterLibrary(tab.library, tab.search, tab.filter, tab.sortKey)
-  readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < rows.length) ? rows[grid.currentIndex] : null
-  readonly property var shown: previewItem || current
+  // The grid's model is a list of piece ids that only changes when the
+  // membership/order changes; card data comes from `byId`, so toggling
+  // enabled/favourite refreshes cards in place without resetting the scroll.
+  readonly property var byId: {
+    var m = {}
+    for (var i = 0; i < tab.library.length; i++) m[tab.library[i].id] = tab.library[i]
+    return m
+  }
+  readonly property var filtered: Model.filterLibrary(tab.library, tab.search, tab.filter, tab.sortKey)
+  property var rows: []
+  property string rowsKey: ""
+  onFilteredChanged: refreshRows()
+  function refreshRows() {
+    var ids = tab.filtered.map(function(p) { return p.id })
+    var key = ids.join("\n")
+    if (key === tab.rowsKey) return
+    var sameLength = ids.length === tab.rows.length
+    var y = grid.contentY, idx = grid.currentIndex
+    tab.rowsKey = key
+    tab.rows = ids
+    if (sameLength || tab.rows.length > 0) Qt.callLater(function() { grid.contentY = Math.min(y, Math.max(0, grid.contentHeight - grid.height)); grid.currentIndex = Math.min(idx, tab.rows.length - 1) })
+  }
+  readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < rows.length) ? (tab.byId[rows[grid.currentIndex]] || null) : null
+  readonly property var shown: previewItem ? (tab.byId[previewItem.id] || previewItem) : current
 
   function onShown() {}
   function focusSearch() { searchField.forceActiveFocus() }
@@ -89,10 +110,10 @@ Item {
         placeholderText: "search title, author, group, tags…"
         foreground: tab.foreground
         accent: tab.accent
-        onTextChanged: { tab.search = text; grid.currentIndex = 0 }
+        onTextChanged: { tab.search = text; Qt.callLater(function() { grid.currentIndex = 0; grid.positionViewAtBeginning() }) }
         Keys.onDownPressed: tab.move(tab.columns())
         Keys.onUpPressed: tab.move(-tab.columns())
-        Keys.onReturnPressed: tab.preview(tab.current)
+        Keys.onReturnPressed: { if (tab.overlay) tab.overlay.focusKeys() }
         Keys.onEscapePressed: function(event) { if (text !== "") text = ""; else if (tab.overlay) tab.overlay.dismiss(); event.accepted = true }
       }
       ButtonGroup {
@@ -101,7 +122,7 @@ Item {
                   { value: "favorites", label: "★" }, { value: "ansi", label: "ANSI" }, { value: "ascii", label: "ASCII" }]
         value: tab.filter
         foreground: tab.foreground; accent: tab.accent
-        onChanged: function(v) { tab.filter = v; grid.currentIndex = 0 }
+        onChanged: function(v) { tab.filter = v; Qt.callLater(function() { grid.currentIndex = 0; grid.positionViewAtBeginning() }) }
       }
       Dropdown {
         anchors.verticalCenter: parent.verticalCenter
@@ -254,9 +275,9 @@ Item {
 
   component ArtCard: Item {
     id: cardRoot
-    required property var modelData
+    required property string modelData
     required property int index
-    readonly property var piece: modelData
+    readonly property var piece: tab.byId[modelData] || ({ id: modelData, title: modelData, enabled: true, favorite: false, format: "ansi", thumb: null })
     readonly property bool current: grid.currentIndex === index
     width: grid.cellWidth
     height: grid.cellHeight
