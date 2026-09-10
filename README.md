@@ -137,6 +137,13 @@ Add your own GitHub repository or HTTP index with **Add source…** (or
 Packs in `.zip`, `.lha`/`.lzh` and other archive formats are opened with
 libarchive; 16colo.rs pieces are fetched individually so no pack download is needed.
 
+Everything that comes from the network is size-capped before the ANSI parser
+sees it: API responses and single files at 16 MiB (both on the wire and after
+gzip inflation), archives at 128 MiB (streamed straight to the cache, never
+held in memory) and archive members at 16 MiB. Cached responses are checked
+again before use (a regular file, not a symlink, within the cap) and cache
+files are written atomically.
+
 **Random import** — the row above the grid imports *N* random pieces from the
 current source or from all of them (each source walks its own catalogue at
 random: a random year → pack → file on 16colo.rs, a random page on Demozoo, a

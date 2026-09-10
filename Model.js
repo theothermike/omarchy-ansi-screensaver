@@ -36,15 +36,19 @@ function filterLibrary(lib, search, filter, sort) {
     out.push(p)
   }
   var key = sort || "added"
+  function cmp(av, bv) { return av < bv ? -1 : (av > bv ? 1 : 0) }
   out.sort(function(a, b) {
-    var av, bv
-    if (key === "title") { av = (a.title || "").toLowerCase(); bv = (b.title || "").toLowerCase() }
-    else if (key === "author") { av = (a.author || "").toLowerCase(); bv = (b.author || "").toLowerCase() }
-    else if (key === "year") { av = a.year || 0; bv = b.year || 0; return bv - av }
-    else if (key === "size") { av = (a.rows || 0); bv = (b.rows || 0); return bv - av }
-    else if (key === "rating") { av = a.score || 0; bv = b.score || 0; return bv - av }
-    else { av = a.added || ""; bv = b.added || ""; return av < bv ? 1 : (av > bv ? -1 : 0) }
-    return av < bv ? -1 : (av > bv ? 1 : 0)
+    var r
+    if (key === "title") r = cmp((a.title || "").toLowerCase(), (b.title || "").toLowerCase())
+    else if (key === "author") r = cmp((a.author || "").toLowerCase(), (b.author || "").toLowerCase())
+    else if (key === "year") r = (b.year || 0) - (a.year || 0)
+    else if (key === "size") r = (b.rows || 0) - (a.rows || 0)
+    else if (key === "rating") r = (b.score || 0) - (a.score || 0)
+    else r = cmp(b.added || "", a.added || "")
+    // Ties are common (a batch import stamps many pieces with the same second)
+    // and the engine's sort is not guaranteed stable, so break them
+    // deterministically: the grid must keep its order when a piece is removed.
+    return r || cmp(b.added || "", a.added || "") || cmp(a.id, b.id)
   })
   return out
 }

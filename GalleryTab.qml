@@ -21,9 +21,11 @@ Item {
   property string sortKey: "added"
   property bool importOpen: false
   property var previewItem: null
-  // The grid's model is a list of piece ids that only changes when the
-  // membership/order changes; card data comes from `byId`, so toggling
-  // enabled/favourite refreshes cards in place without resetting the scroll.
+  // The grid's model is a ListModel of piece ids that is patched in place
+  // (removals and insertions) so the view keeps its scroll position and its
+  // live delegates; it is only rebuilt when the order changes (sort/filter).
+  // Card data comes from `byId`, so toggling enabled/favourite refreshes cards
+  // in place as well.
   readonly property var byId: {
     var m = {}
     for (var i = 0; i < tab.library.length; i++) m[tab.library[i].id] = tab.library[i]
@@ -32,16 +34,55 @@ Item {
   readonly property var filtered: Model.filterLibrary(tab.library, tab.search, tab.filter, tab.sortKey)
   property var rows: []
   property string rowsKey: ""
+  // Pieces whose removal is in flight: hidden at once so the grid reflows
+  // exactly once, at the click, instead of after the CLI + snapshot round-trip
+  // (which would leave a dead card under the pointer for a few hundred ms).
+  property var removing: ({})
   onFilteredChanged: refreshRows()
+  onRemovingChanged: refreshRows()
+  onLibraryChanged: {
+    var present = {}, keep = {}, changed = false
+    for (var i = 0; i < tab.library.length; i++) present[tab.library[i].id] = true
+    for (var id in tab.removing) { if (present[id]) keep[id] = true; else changed = true }
+    if (changed) tab.removing = keep
+  }
+  ListModel { id: rowsModel }
   function refreshRows() {
-    var ids = tab.filtered.map(function(p) { return p.id })
+    var ids = tab.filtered.map(function(p) { return p.id }).filter(function(id) { return !tab.removing[id] })
     var key = ids.join("\n")
     if (key === tab.rowsKey) return
-    var sameLength = ids.length === tab.rows.length
-    var y = grid.contentY, idx = grid.currentIndex
+    var old = tab.rows
     tab.rowsKey = key
     tab.rows = ids
-    if (sameLength || tab.rows.length > 0) Qt.callLater(function() { grid.contentY = Math.min(y, Math.max(0, grid.contentHeight - grid.height)); grid.currentIndex = Math.min(idx, tab.rows.length - 1) })
+    if (tab.patchRows(old, ids)) {
+      if (grid.currentIndex >= ids.length) grid.currentIndex = ids.length - 1
+      return
+    }
+    // order changed: rebuild, then put the view back where it was
+    var y = grid.contentY, idx = grid.currentIndex
+    rowsModel.clear()
+    for (var i = 0; i < ids.length; i++) rowsModel.append({ pid: ids[i] })
+    if (ids.length > 0) Qt.callLater(function() {
+      var maxY = Math.max(0, Math.ceil(tab.rows.length / tab.columns()) * grid.cellHeight - grid.height)
+      grid.contentY = Math.min(y, maxY)
+      grid.currentIndex = Math.min(idx, tab.rows.length - 1)
+    })
+  }
+  // Turn `old` into `next` with in-place removals and insertions on rowsModel.
+  // Returns false when the relative order of surviving ids changed.
+  function patchRows(old, next) {
+    var i = 0, j = 0, removed = [], inserted = []
+    while (i < old.length && j < next.length) {
+      if (old[i] === next[j]) { i++; j++ }
+      else if (next.indexOf(old[i], j) === -1) removed.push(i++)
+      else if (old.indexOf(next[j], i) === -1) inserted.push(j++)
+      else return false
+    }
+    while (i < old.length) removed.push(i++)
+    while (j < next.length) inserted.push(j++)
+    for (var r = removed.length - 1; r >= 0; r--) rowsModel.remove(removed[r], 1)
+    for (var k = 0; k < inserted.length; k++) rowsModel.insert(inserted[k], { pid: next[inserted[k]] })
+    return true
   }
   readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < rows.length) ? (tab.byId[rows[grid.currentIndex]] || null) : null
   readonly property var shown: previewItem ? (tab.byId[previewItem.id] || previewItem) : current
@@ -69,7 +110,12 @@ Item {
   function remove(p) {
     if (!p || !tab.overlay) return
     var doRemove = function() {
-      tab.service.libraryAction("remove", p.id)
+      var pending = Object.assign({}, tab.removing); pending[p.id] = true; tab.removing = pending
+      tab.service.libraryAction("remove", p.id, { onDone: function(exitCode) {
+        if (exitCode === 0) return
+        var m = Object.assign({}, tab.removing); delete m[p.id]; tab.removing = m
+        tab.overlay.status("could not remove " + p.title)
+      } })
       tab.overlay.status("removed " + p.title)
       if (tab.previewItem && tab.previewItem.id === p.id) tab.previewItem = null
     }
@@ -181,7 +227,7 @@ Item {
         cellHeight: Style.space(224)
         cacheBuffer: cellHeight * 2
         boundsBehavior: Flickable.StopAtBounds
-        model: tab.rows
+        model: rowsModel
         currentIndex: 0
         delegate: ArtCard {}
 
@@ -277,9 +323,9 @@ Item {
 
   component ArtCard: Item {
     id: cardRoot
-    required property string modelData
+    required property string pid
     required property int index
-    readonly property var piece: tab.byId[modelData] || ({ id: modelData, title: modelData, enabled: true, favorite: false, format: "ansi", thumb: null })
+    readonly property var piece: tab.byId[pid] || ({ id: pid, title: pid, enabled: true, favorite: false, format: "ansi", thumb: null })
     readonly property bool current: grid.currentIndex === index
     width: grid.cellWidth
     height: grid.cellHeight

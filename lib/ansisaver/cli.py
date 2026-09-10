@@ -89,6 +89,8 @@ def _import_path(path: Path, prog: Progress, kw: dict, results: dict, counter: l
         return
     if path.suffix.lower() == ".zip":
         import zipfile
+
+        from .sources.archives import read_zip_member
         with zipfile.ZipFile(path) as z:
             names = [n for n in z.namelist() if not n.endswith("/") and "__MACOSX" not in n]
             for n in names:
@@ -97,7 +99,7 @@ def _import_path(path: Path, prog: Progress, kw: dict, results: dict, counter: l
                 counter[0] += 1
                 prog(counter[0], max(counter[1], counter[0]), n)
                 try:
-                    meta, created = L.import_bytes(z.read(n), n, source={"provider": "local", "url": str(path), "pack": path.stem}, **kw)
+                    meta, created = L.import_bytes(read_zip_member(z, n), n, source={"provider": "local", "url": str(path), "pack": path.stem}, **kw)
                     results["added" if created else "skipped"].append({"id": meta["id"], "file": n} if created else {"id": meta["id"], "file": n, "reason": "duplicate"})
                 except Exception as e:  # noqa: BLE001
                     results["failed"].append({"file": n, "reason": str(e)})

@@ -360,8 +360,8 @@ Item {
     return "ok"
   }
 
-  function libraryAction(action, id) {
-    root.runCli(["library", action, id], {})
+  function libraryAction(action, id, opts) {
+    root.runCli(["library", action, id], opts || {})
     root.logEvent(action + " " + id)
     return "ok"
   }
