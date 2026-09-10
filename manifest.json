@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.theothermike.ansi-screensaver",
   "name": "ANSI Screensaver",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "author": "Mike",
   "license": "MIT",
   "description": "ANSI/ASCII art slideshow screensaver with ttfx reveals, a library gallery, online art sources, and idle takeover.",

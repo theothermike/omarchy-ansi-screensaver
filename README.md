@@ -18,18 +18,64 @@ browsers for the public art archives, and a bar icon.
   idle timer fires a couple of seconds before Omarchy's, whose launcher then sees
   the running window and stands down; lock, wake and stay-awake keep working.
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Gallery](docs/gallery.png) The library gallery: thumbnails with per-card preview / star / enable / remove, search, filters, sort. | ![Sources](docs/sources-16colors.png) Browsing a 16colo.rs pack — thumbnails from the archive, Add / Add all. |
+| ![Sources with ratings](docs/sources-asciiart.png) asciiart.eu with view/like counts, rating sort and the random-import row. | ![Effects](docs/effects.png) Effects: reveal mix, the ttfx effect set with measured durations, out-transitions. |
+| ![Settings](docs/settings.png) Settings: slideshow timing, display/font, Omarchy idle timeouts, takeover. | |
+
+The screensaver itself (art credits in the captions; both pieces are on 16colo.rs):
+
+![Screensaver](docs/screensaver-ultimate-warrior.png)
+*"the ultimate warrior" — xeR0 / Blocktronics, 2020, mid-reveal.*
+
+![Screensaver with caption](docs/screensaver-night-city-group.png)
+*"Night City Group" — ACiD Productions, 1997, scrolled to the end with the credit caption; IBM VGA font.*
+
+## Requirements
+
+- Omarchy 4.x (Quickshell shell, Hyprland) with its stock `ttfx` and `ghostty` packages.
+- Python 3.12+ (standard library only). Optional: `python-pillow` (thumbnails and previews),
+  `bsdtar`/libarchive (LHA/ARJ archives from older packs — installed on Omarchy by default).
+- No sudo or pkexec is required. Nothing runs as root.
+
+Everything the plugin writes lives in `~/.config/omarchy/ansi-screensaver/`,
+`~/.cache/ansi-screensaver/`, `~/.local/state/ansi-screensaver/` and, only when
+you ask for it, `~/.local/bin/ansi-screensaver` (symlink) and
+`~/.local/share/fonts/ansi-screensaver/` (the VGA font). It never edits your
+Omarchy configuration except through Omarchy's own commands: enabling the bar
+widget (`omarchy plugin enable`) and, if you change them in Settings, the idle
+timeouts in `shell.json` via `omarchy-shell-config`.
+
 ## Install
 
 ```sh
-omarchy plugin add git@github.com:theothermike/omarchy-ansi-screensaver.git   # or clone into ~/.config/omarchy/plugins/<id>
-omarchy plugin enable io.github.theothermike.ansi-screensaver --section right # bar icon; also enables the service + overlay
+omarchy plugin add https://github.com/theothermike/omarchy-ansi-screensaver.git --enable
 ~/.config/omarchy/plugins/io.github.theothermike.ansi-screensaver/bin/ansi-screensaver install --fonts --seed
 ```
 
 `install` symlinks the CLI to `~/.local/bin/ansi-screensaver`, installs the vendored
 IBM VGA font for the user (optional but recommended — 1:2 cells, authentic block
-glyphs) and seeds the bundled art into the library. Requirements: Omarchy with
-`ttfx` and `ghostty` (both stock), Python 3.12+; `python-pillow` for thumbnails.
+glyphs) and seeds the bundled art into the library (from `art/` when present,
+otherwise by fetching the pieces listed in `catalog.json` from 16colo.rs).
+If `--enable` did not place the bar icon, run
+`omarchy plugin enable io.github.theothermike.ansi-screensaver --section right`.
+
+## Remove
+
+```sh
+ansi-screensaver stop --previews                      # if it is running
+omarchy plugin remove io.github.theothermike.ansi-screensaver --yes
+rm -f ~/.local/bin/ansi-screensaver
+rm -rf ~/.config/omarchy/ansi-screensaver ~/.cache/ansi-screensaver ~/.local/state/ansi-screensaver   # library, caches, log
+rm -rf ~/.local/share/fonts/ansi-screensaver && fc-cache -f                                            # only if you installed the VGA font
+```
+
+Omarchy's stock screensaver and idle service were never modified and take over
+again immediately. If you added the optional menu override or keybindings (below),
+delete those lines yourself.
 
 Optional integration (what this checkout uses):
 
@@ -60,6 +106,46 @@ Keys: arrows/hjkl browse · Enter preview · `e` enable · `f` favourite · `a` 
 **Screensaver** — any key or mouse movement ends it (also focus loss and the
 lock screen). `ansi-screensaver launch --force` starts it now, `stop` ends it,
 `preview <id>` shows one piece on the focused monitor.
+
+## Sources
+
+The Sources tab shows one tree browser for every archive. Pick a source on the
+left, open folders/packs, and use **Add** on a piece or **Add all** on a pack.
+Items show the archive's thumbnail when it has one, the text itself for pure
+ASCII sites, or a **Preview** button; **Preview all** (or `p`) renders every
+pictureless item on the page one by one. `a` adds the selected item, `Enter`
+opens/previews, `Backspace` goes up, `/` searches where the source supports it.
+
+| Source | What it is | Browse by | Thumbnails | Ratings |
+|---|---|---|---|---|
+| **16colo.rs** | the ANSI/ASCII art archive: every artpack since 1990 (JSON API) | year → pack, group, artist, latest, search | yes | no |
+| **Demozoo** | demoscene database: ANSI / ASCII / ASCII-collection / artpack productions | type, search; files via scene.org | per item | no |
+| **Internet Archive** | search-driven: items → files → archive members | preset queries or free search | item image | no |
+| **GitHub repositories** | any repo (the sixteencolors archive mirror is preconfigured) | folders → archives → members | via 16colo.rs for the mirror | no |
+| **HTTP directory indexes** | plain listings such as artscene.textfiles.com (preconfigured) | folders → files/archives | when the site has `.png` renders | no |
+| **asciiart.eu** | the ASCII Art Archive (categories of classic ASCII) | category → subcategory → piece | text preview | **likes + views** |
+| **ascii.co.uk** | topic pages of ASCII art | topic → piece | text preview | no |
+
+Add your own GitHub repository or HTTP index with **Add source…** (or
+`ansi-screensaver sources add --kind github_repo|http_index --url …`).
+Packs in `.zip`, `.lha`/`.lzh` and other archive formats are opened with
+libarchive; 16colo.rs pieces are fetched individually so no pack download is needed.
+
+**Random import** — the row above the grid imports *N* random pieces from the
+current source or from all of them (each source walks its own catalogue at
+random: a random year → pack → file on 16colo.rs, a random page on Demozoo, a
+random category on asciiart.eu…). Picks are remembered in
+`~/.cache/ansi-screensaver/sources/random-history.json` so you never get the
+same piece twice, and imports carry a `random` tag. **Highest rated** works for
+sources with ratings — currently asciiart.eu — after you build its rating index
+once (**Build rating index**, a few minutes: it records likes/views for every
+piece on the site); picks are then sampled from the top tenth by score.
+
+Everything imported keeps its credits: SAUCE title/artist/group/date when the
+file has them, the archive's own metadata otherwise, plus the source URL and a
+licence note in `meta.json`. The bundled starter set (`catalog.json`) is
+fetched from 16colo.rs on first run and listed with full credits in
+`ATTRIBUTION.md`; the artwork remains its artists' property.
 
 ## CLI
 
@@ -92,7 +178,7 @@ Add `--json` for machine-readable output and `--progress` to stream
 | `~/.config/omarchy/ansi-screensaver/library/<id>/` | `original.*`, `meta.json`, `flat.ans` (normalised), `render.png`, `thumb.png` |
 | `~/.cache/ansi-screensaver/` | source API responses, downloaded packs, previews, font-size calibration |
 | `~/.local/state/ansi-screensaver/runner.log` | what the slideshow did |
-| `art/` (repo) | the bundled pieces, `catalog.json`, `ATTRIBUTION.md` |
+| `catalog.json`, `ATTRIBUTION.md` (repo) | the curated starter set (fetched on first run) and its credits |
 
 ## How it works
 

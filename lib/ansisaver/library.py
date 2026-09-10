@@ -311,7 +311,24 @@ def seed(progress=None) -> dict:
     """Copy bundled art/<id>/ pieces into the library. Idempotent."""
     from . import config as C
     result: dict[str, list] = {"seeded": [], "skipped": [], "failed": []}
-    if not paths.ART_DIR.is_dir():
+    art_dirs = [d for d in paths.ART_DIR.iterdir() if d.is_dir()] if paths.ART_DIR.is_dir() else []
+    if not art_dirs:
+        # no bundled files in this checkout: fetch the curated set from the catalog
+        if paths.CATALOG.is_file():
+            from types import SimpleNamespace
+            from .catalog import cmd_fetch
+            ns = SimpleNamespace(catalog=str(paths.CATALOG), only=[], into=None, progress=False, json=True)
+            import contextlib, io, json as _json
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cmd_fetch(ns)
+            try:
+                r = _json.loads(buf.getvalue())
+                result["seeded"] = [x["id"] for x in r.get("added", [])]
+                result["skipped"] = [x["id"] for x in r.get("skipped", [])]
+                result["failed"] = r.get("failed", [])
+            except ValueError:
+                result["failed"].append({"id": "catalog", "reason": "fetch produced no result"})
         return result
     removed = set(C.load().get("removed_bundled") or [])
     idx = hash_index()
