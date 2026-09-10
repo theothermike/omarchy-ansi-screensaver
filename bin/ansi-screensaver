@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""ANSI/ASCII art screensaver for Omarchy - command line entry point."""
+import os
+import sys
+
+# The Omarchy shell inotify-watches the plugins directory recursively; a stray
+# __pycache__ write would trigger a plugin reload, so never write bytecode.
+sys.dont_write_bytecode = True
+os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
+
+_here = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, os.path.join(os.path.dirname(_here), "lib"))
+
+from ansisaver.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
