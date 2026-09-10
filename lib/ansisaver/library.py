@@ -225,6 +225,12 @@ def store(norm: Normalized, data: bytes, *, source: dict | None = None, override
     _write_json(d / "meta.json", meta)
     if into is None:
         _index_add(meta["hash"], meta["id"])
+        try:  # thumbnails are best-effort (Pillow optional)
+            from .render import available, render_piece
+            if available():
+                render_piece(meta, force=True)
+        except Exception:  # noqa: BLE001
+            pass
         touch_revision()
     return meta, True
 

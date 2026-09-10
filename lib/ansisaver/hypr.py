@@ -149,7 +149,11 @@ def _ancestors() -> set[int]:
 
 def class_pids(window_class: str, exclude_self: bool = True) -> list[int]:
     """PIDs whose command line contains the window class literal."""
-    needle = window_class.encode()
+    # Only real screensaver processes: a ghostty window (--class=CLS) or our
+    # runner (--window-class CLS). Matching any mention of the literal would
+    # also catch an unrelated shell that merely typed the class name.
+    cls = window_class.encode()
+    needles = (b"--class=" + cls + b"\x00", b"--window-class\x00" + cls + b"\x00", b"--class\x00" + cls + b"\x00")
     skip = _ancestors() if exclude_self else set()
     out = []
     for entry in os.listdir("/proc"):
@@ -163,6 +167,6 @@ def class_pids(window_class: str, exclude_self: bool = True) -> list[int]:
                 cmd = f.read()
         except OSError:
             continue
-        if needle in cmd:
+        if any(n in cmd for n in needles):
             out.append(pid)
     return out

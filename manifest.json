@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.theothermike.ansi-screensaver",
+  "name": "ANSI Screensaver",
+  "version": "0.1.0",
+  "author": "Mike",
+  "license": "MIT",
+  "description": "ANSI/ASCII art slideshow screensaver with ttfx reveals, a library gallery, online art sources, and idle takeover.",
+  "kinds": ["service", "overlay", "bar-widget"],
+  "keepLoaded": false,
+  "entryPoints": {
+    "service": "Service.qml",
+    "overlay": "Gallery.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "ANSI Screensaver",
+    "description": "Left: gallery and settings. Right: launch now. Middle: toggle idle takeover.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": { "glyph": "󱄄", "armedBadge": true },
+    "schema": [
+      { "key": "glyph", "type": "enum", "label": "Icon", "description": "Bar glyph",
+        "options": ["󱄄", "󰔂", "󰏘", "󰋩", "󰆍"], "defaultValue": "󱄄" },
+      { "key": "armedBadge", "type": "boolean", "label": "Armed badge",
+        "description": "Small dot when idle takeover is armed", "defaultValue": true }
+    ]
+  },
+  "ansiScreensaver": { "cli": "bin/ansi-screensaver", "protocolVersion": 1 }
+}

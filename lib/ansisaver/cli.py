@@ -426,7 +426,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     ap = build_parser()
-    args = ap.parse_args(argv)
+    raw = list(sys.argv[1:] if argv is None else argv)
+    # --json / --progress are accepted anywhere on the line (the UI appends them)
+    flags = {"--json": False, "--progress": False}
+    rest = []
+    for a in raw:
+        if a in flags:
+            flags[a] = True
+        else:
+            rest.append(a)
+    args = ap.parse_args(rest)
+    if flags["--json"]:
+        args.json = True
+    if flags["--progress"]:
+        args.progress = True
     logging.basicConfig(level=getattr(logging, str(args.log_level).upper(), logging.INFO),
                         format="%(levelname)s %(name)s: %(message)s", stream=sys.stderr)
     if args.cmd == "config" and args.op in ("get", "set") and not args.key:

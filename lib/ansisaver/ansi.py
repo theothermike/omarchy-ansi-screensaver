@@ -43,8 +43,25 @@ def detect_encoding(body: bytes, sauce=None, hint: str | None = None) -> str:
             text = body.decode("utf-8")
         except UnicodeDecodeError:
             return "cp437"
-        return "utf8"
+        return "utf8" if plausible_utf8_art(text) else "cp437"
     return "cp437"
+
+
+def plausible_utf8_art(text: str) -> bool:
+    """CP437 byte runs occasionally decode as valid UTF-8 (e.g. \xdb\xb0 ->
+    U+06F0). Accept UTF-8 only if the non-ASCII characters look like text
+    art: box/block drawing, Latin letters, symbols, arrows, emoji-ish."""
+    non_ascii = [c for c in text if ord(c) >= 0x80]
+    if not non_ascii:
+        return True
+    ok = 0
+    for c in non_ascii:
+        o = ord(c)
+        if (0x00A0 <= o <= 0x024F or 0x2190 <= o <= 0x21FF or 0x2200 <= o <= 0x22FF or 0x2500 <= o <= 0x25FF
+                or 0x2600 <= o <= 0x27BF or 0x2B00 <= o <= 0x2BFF or 0x1F300 <= o <= 0x1FAFF or 0x0370 <= o <= 0x03FF
+                or 0x2000 <= o <= 0x206F or 0x3000 <= o <= 0x30FF or 0x4E00 <= o <= 0x9FFF or 0xFF00 <= o <= 0xFFEF):
+            ok += 1
+    return ok / len(non_ascii) >= 0.7
 
 
 class Interpreter:
@@ -215,7 +232,7 @@ class Interpreter:
         return out
 
     def _dispatch(self, raw: str, final: str) -> None:
-        private = raw[:1] in "?=><"
+        private = bool(raw) and raw[0] in "?=><"
         if private:
             body = raw[1:]
             if final in "hl" and raw[0] == "?":

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import shutil
@@ -13,6 +14,8 @@ from argparse import Namespace
 
 from . import config as C
 from . import hypr, library as L, paths, sizing
+
+log = logging.getLogger("ansisaver.launch")
 
 
 def notify(msg: str) -> None:
@@ -86,18 +89,26 @@ def write_runtime_files(plan: dict, cfg: dict, pieces: list[dict], font: dict) -
 def launch(args, window_class: str | None = None) -> int:
     window_class = window_class or args.window_class
     paths.ensure_dirs()
+    from .runner import setup_logging
+    setup_logging()
+    log.info("launch class=%s force=%s piece=%s hypr=%s path=%s", window_class, getattr(args, "force", False),
+             getattr(args, "piece", None), hypr.available(), os.environ.get("PATH", "")[:80])
     if not shutil.which("ttfx"):
         notify("ANSI screensaver needs ttfx (pacman -S ttfx)")
         return 1
     if not shutil.which("ghostty"):
         notify("ANSI screensaver needs ghostty")
         return 1
-    if hypr.class_pids(window_class):
-        return 0  # already running
+    running = hypr.class_pids(window_class)
+    if running:
+        log.info("already running: %s", running)
+        return 0
     force = bool(getattr(args, "force", False))
     if not force and paths.SCREENSAVER_OFF_FLAG.exists():
+        log.info("screensaver-off toggle set; not launching")
         return 1
     if not force and is_locked():
+        log.info("session locked; not launching")
         return 0
     cfg = C.load()
     pieces = [m for m in L.list_pieces() if m.get("enabled", True)]
@@ -123,6 +134,7 @@ def launch(args, window_class: str | None = None) -> int:
         print(json.dumps(plan, indent=2))
         return 0
     if not plan["monitors"]:
+        log.error("no monitors (HYPRLAND_INSTANCE_SIGNATURE=%s)", os.environ.get("HYPRLAND_INSTANCE_SIGNATURE"))
         notify("ANSI screensaver: no monitors found (is Hyprland running?)")
         return 1
     write_runtime_files(plan, cfg, pieces, font)
@@ -134,7 +146,8 @@ def launch(args, window_class: str | None = None) -> int:
         for p, argv in zip(plan["monitors"], plan["argv"]):
             hypr.focus_monitor(p["name"])
             hypr.exec_cmd(argv)
-            events.wait_for_open(window_class, 5.0)
+            addr = events.wait_for_open(window_class, 5.0)
+            log.info("monitor %s: window %s", p["name"], addr or "not seen within 5s")
     finally:
         if focused:
             hypr.focus_monitor(focused)
