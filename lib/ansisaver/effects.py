@@ -16,7 +16,7 @@ TABLE: dict[str, tuple[int, str, list]] = {
     "errorcorrect": (180, "always", [("--error-color", ["red"]), ("--correct-color", ["green"])]),
     "expand": (60, "always", []),
     "fireworks": (150, "always", [("--firework-colors", ["red", "yellow", "orange", "accent", "cyan"])]),
-    "highlight": (45, "always", []),
+    "highlight": (45, "dynamic", []),
     "laseretch": (240, "dynamic", []),
     "matrix": (180, "dynamic", [("--rain-color-gradient", ["green", "bright_green"]), ("--highlight-color", ["ffffff"])]),
     "middleout": (60, "always", [("--starting-color", ["accent"])]),
@@ -30,7 +30,7 @@ TABLE: dict[str, tuple[int, str, list]] = {
     "slice": (60, "always", []),
     "slide": (60, "always", []),
     "smoke": (60, "dynamic", [("--smoke-gradient-stops", ["202020", "muted", "light_foreground"])]),
-    "spotlights": (90, "always", []),
+    "spotlights": (90, "dynamic", []),
     "spray": (60, "always", []),
     "swarm": (240, "always", [("--base-color", ["muted"]), ("--flash-color", ["accent"])]),
     "sweep": (60, "always", []),
@@ -40,7 +40,7 @@ TABLE: dict[str, tuple[int, str, list]] = {
     "vhstape": (90, "dynamic", [("--glitch-line-colors", ["red", "cyan", "ffffff"]), ("--noise-colors", ["303030", "808080", "c0c0c0"])]),
     "waves": (60, "always", [("--wave-gradient-stops", ["accent", "foreground"])]),
     "wipe": (45, "always", []),
-    "colorshift": (60, "always", []),
+    "colorshift": (60, "dynamic", []),
     "overflow": (60, "always", []),
     "binarypath": (120, "always", []),
     "bubbles": (240, "always", []),
@@ -76,12 +76,24 @@ def pick(weights: dict[str, float], rng: random.Random) -> str:
     return rng.choices(names, weights=ws, k=1)[0]
 
 
+# Effects whose animation is colour only: every character is in its final
+# place from the first frame and only the colours move. With the art's own
+# colours forced for the whole run ("always") there is nothing to see, so
+# these use "dynamic" whatever the setting (effect palette while animating,
+# the piece's own colours at the end). Verified frame by frame with a
+# terminal emulator: under "always" their screen at 15% of the run already
+# equals the final frame.
+COLOR_ONLY = frozenset({"highlight", "spotlights", "colorshift"})
+
+
 def build_argv(effect: str, input_path: str, cols: int, rows: int, *, theme: Theme, seed: int,
                color_mode: str = "always", fps_scale: float = 1.0, rng: random.Random | None = None) -> list[str]:
     if effect not in TABLE:
         raise KeyError(effect)
     fps, mode, extra = TABLE[effect]
-    if color_mode == "always":
+    if effect in COLOR_ONLY:
+        mode = "dynamic"
+    elif color_mode == "always":
         mode = "always"
     rng = rng or random.Random(seed)
     argv = ["ttfx", "-i", input_path,

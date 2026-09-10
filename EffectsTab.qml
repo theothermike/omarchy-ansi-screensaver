@@ -64,7 +64,7 @@ Item {
           NumberField { label: "ttfx"; value: tab.get("reveal.ttfx", 70); from: 0; to: 100; stepSize: 5; onModified: function(v) { tab.set("reveal.ttfx", v) } }
           NumberField { label: "baud"; value: tab.get("reveal.baud", 30); from: 0; to: 100; stepSize: 5; onModified: function(v) { tab.set("reveal.baud", v) } }
         } }
-      FieldRow { label: "Art colours during effects"; description: "always = the art's own colours throughout · dynamic = the effect's palette while animating, art colours at the end"; foreground: tab.foreground; muted: tab.muted
+      FieldRow { label: "Art colours during effects"; description: "always = the art's own colours throughout · dynamic = the effect's palette while animating, art colours at the end (colour-only effects such as highlight and spotlights always animate in dynamic)"; foreground: tab.foreground; muted: tab.muted
         ButtonGroup { options: [{ value: "always", label: "Always" }, { value: "dynamic", label: "Dynamic" }]; value: tab.get("ttfx.existing_color_handling", "always"); foreground: tab.foreground; accent: tab.accent; onChanged: function(v) { tab.set("ttfx.existing_color_handling", v) } } }
       FieldRow { label: "Effect speed"; description: "frame-rate multiplier for every ttfx effect (percent)"; foreground: tab.foreground; muted: tab.muted
         NumberField { value: Math.round(Number(tab.get("ttfx.frame_rate_scale", 1.0)) * 100); from: 25; to: 400; stepSize: 25; onModified: function(v) { tab.set("ttfx.frame_rate_scale", v / 100) } } }
