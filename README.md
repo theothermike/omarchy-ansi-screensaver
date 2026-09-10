@@ -53,37 +53,31 @@ timeouts in `shell.json` via `omarchy-shell-config`.
 
 ```sh
 omarchy plugin add https://github.com/theothermike/omarchy-ansi-screensaver.git --enable
-~/.config/omarchy/plugins/io.github.theothermike.ansi-screensaver/bin/ansi-screensaver install --fonts --seed
 ```
 
-`install` symlinks the CLI to `~/.local/bin/ansi-screensaver`, installs the vendored
-IBM VGA font for the user (optional but recommended — 1:2 cells, authentic block
-glyphs) and seeds the bundled art into the library (from `art/` when present,
-otherwise by fetching the pieces listed in `catalog.json` from 16colo.rs).
-If `--enable` did not place the bar icon, run
-`omarchy plugin enable io.github.theothermike.ansi-screensaver --section right`.
+That is all: the bar icon appears, the starter set is fetched into your library
+the first time the gallery or screensaver runs, and idle takeover is armed.
+Optional extras, all from inside the plugin:
+
+- **Settings → Install VGA font** installs the vendored IBM VGA 8×16 face for your
+  user (authentic glyphs, 1:2 cells). The terminal font is used otherwise.
+- `~/.config/omarchy/plugins/io.github.theothermike.ansi-screensaver/bin/ansi-screensaver install`
+  symlinks the CLI to `~/.local/bin` if you want to script it. Nothing in the
+  plugin needs this.
 
 ## Remove
 
 ```sh
-ansi-screensaver stop --previews                      # if it is running
 omarchy plugin remove io.github.theothermike.ansi-screensaver --yes
-rm -f ~/.local/bin/ansi-screensaver
-rm -rf ~/.config/omarchy/ansi-screensaver ~/.cache/ansi-screensaver ~/.local/state/ansi-screensaver   # library, caches, log
-rm -rf ~/.local/share/fonts/ansi-screensaver && fc-cache -f                                            # only if you installed the VGA font
 ```
 
-Omarchy's stock screensaver and idle service were never modified and take over
-again immediately. If you added the optional menu override or keybindings (below),
-delete those lines yourself.
+Omarchy's stock screensaver takes over again immediately. Your library, caches
+and log are kept in case you reinstall; delete them if you want a clean slate:
 
-Optional integration (what this checkout uses):
-
-- `~/.config/omarchy/extensions/omarchy-menu.jsonc` — override `system.screensaver`
-  with `ansi-screensaver launch --force` and add a gallery entry running
-  `omarchy-shell ansisaver open`.
-- `~/.config/hypr/bindings.lua` — `SUPER+ALT+S` opens the gallery,
-  `SUPER+ALT+SHIFT+S` launches the screensaver.
+```sh
+rm -rf ~/.config/omarchy/ansi-screensaver ~/.cache/ansi-screensaver ~/.local/state/ansi-screensaver
+rm -f ~/.local/bin/ansi-screensaver; rm -rf ~/.local/share/fonts/ansi-screensaver   # only if you used the extras
+```
 
 ## Using it
 
