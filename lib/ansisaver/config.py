@@ -13,12 +13,12 @@ from . import paths
 # 80x108 piece at 138x46 (see effects.MEASURED_SECONDS) are off by default.
 DEFAULT_EFFECTS = {
     "expand": 2, "highlight": 2, "middleout": 2, "randomsequence": 2, "scattered": 2, "slice": 2,
-    "slide": 3, "smoke": 2, "spotlights": 2, "spray": 2, "sweep": 3, "synthgrid": 1, "unstable": 2,
+    "slide": 3, "smoke": 2, "spotlights": 2, "spray": 2, "sweep": 3, "unstable": 2,
     "vhstape": 2, "waves": 2, "wipe": 3, "fireworks": 2, "orbittingvolley": 2, "rings": 1,
     # slow (> 10 s): off unless enabled in the Effects tab
     "beams": 0, "blackhole": 0, "bouncyballs": 0, "burn": 0, "crumble": 0, "decrypt": 0, "errorcorrect": 0,
     "laseretch": 0, "matrix": 0, "pour": 0, "print": 0, "rain": 0, "swarm": 0, "thunderstorm": 0,
-    "binarypath": 0, "bubbles": 0,
+    "binarypath": 0, "bubbles": 0, "synthgrid": 0,
     # not interesting on coloured art
     "colorshift": 0, "overflow": 0,
 }
