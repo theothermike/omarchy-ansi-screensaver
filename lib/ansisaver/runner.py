@@ -271,7 +271,7 @@ class Slideshow:
         next_due = time.monotonic()
         while top + rows < prows:
             row = grid.rows[top + rows]
-            width = len(row)
+            width = self.painter.fit(row, x_off)  # clipped wide pieces
             self.painter.scroll_blank()
             if width == 0:
                 next_due += row_time

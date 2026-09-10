@@ -225,7 +225,7 @@ class Painter:
     def scroll_up(self, new_row, pad: int = 0) -> None:
         """Scroll the screen one line and draw `new_row` at the bottom."""
         t = self.term
-        s = row_to_sgr(new_row, upto=len(new_row), pad=pad)
+        s = row_to_sgr(new_row, upto=self.fit(new_row, pad), pad=pad)
         t.write(f"\x1b[S\x1b[{t.rows};1H{s}\x1b[K")
         t.flush()
         if self.cache:
@@ -238,8 +238,15 @@ class Painter:
         if self.cache:
             self.cache = self.cache[1:] + [""]
 
+    def fit(self, row, pad: int = 0) -> int:
+        """How many cells of `row` fit on a line after `pad` columns. Writing
+        past the last column wraps, and on the bottom line that scrolls the
+        screen -- a blank line under every row of a clipped wide piece."""
+        return max(0, min(len(row), self.term.cols - pad))
+
     def draw_segment(self, row, pad: int, a: int, b: int) -> None:
         """Paint cells [a, b) of `row` on the bottom line (progressive reveal)."""
+        b = min(b, self.fit(row, pad))
         if b <= a:
             return
         t = self.term
@@ -248,4 +255,4 @@ class Painter:
 
     def commit_bottom(self, row, pad: int = 0) -> None:
         if self.cache:
-            self.cache[-1] = row_to_sgr(row, upto=len(row), pad=pad)
+            self.cache[-1] = row_to_sgr(row, upto=self.fit(row, pad), pad=pad)

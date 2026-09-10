@@ -40,6 +40,10 @@ class TermSink:
             self._scroll_to(sy - self.rows + 1)
         row = sy - self.top + 1
         col = x + self.x_off + 1
+        if col > self.term.cols:
+            # clipped wide piece: printing here would wrap onto the next line
+            self.last = None
+            return
         if self.last != (col, row):
             self.pending.append(f"\x1b[{row};{col}H")
         if bg != self.bg:
