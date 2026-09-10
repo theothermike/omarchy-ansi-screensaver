@@ -107,8 +107,8 @@ starts it now, `stop` ends it, `preview <id>` shows one piece on the focused mon
 
 **Configuration** — `~/.config/omarchy/ansi-screensaver/config.json` holds only
 the values you changed (`ansi-screensaver config dump` shows the effective set,
-`config set key value` changes one). Notable keys: `hold_seconds` (7… whatever you
-like), `scroll_rows_per_second` (15), `hold_top_seconds` (0), `columns` (80 / 100 /
+`config set key value` changes one). Notable keys (defaults in brackets): `hold_seconds` (20),
+`scroll_rows_per_second` (15), `hold_top_seconds` (0), `columns` (80 / 100 /
 132 / auto), `font` (auto / vga / terminal), `reveal.ttfx` / `reveal.baud` weights,
 `ttfx.effects.<name>` and `transitions.out.<name>` weights (0 = off),
 `ttfx.max_seconds` (15), `confirm_remove`, `idle.takeover`, `idle.lead_seconds`.
