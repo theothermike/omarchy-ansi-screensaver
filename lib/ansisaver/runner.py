@@ -171,28 +171,36 @@ class Slideshow:
             parts.append(f", {meta['year']}")
         return "".join(parts)
 
-    def draw_caption(self, meta: dict, frame) -> None:
+    def caption_spot(self, meta: dict, frame):
+        """(row, col, text) for the caption, or None if it would cover art."""
         if not self.cfg.get("caption", True) or meta["id"] == BRANDING_ID:
-            return
+            return None
         cols, rows = self.term.cols, self.term.rows
         text = self.caption_text(meta)[: max(0, cols - 2)]
         if not text:
-            return
+            return None
         pos = self.cfg.get("caption_position", "br")
-        row = rows if pos[0] == "b" else 1
         col = cols - len(text) if pos[1] == "r" else 2
-        # avoid covering painted cells: try the opposite vertical edge
-        def occupied(r: int) -> bool:
+
+        def free(r: int) -> bool:
             line = frame[r - 1]
-            return any(line[x - 1] != BLANK for x in range(col, col + len(text)) if 0 < x <= cols)
-        if occupied(row):
-            alt = 1 if row == rows else rows
-            if not occupied(alt):
-                row = alt
+            return not any(line[x - 1] != BLANK for x in range(col, col + len(text)) if 0 < x <= cols)
+        first, second = (rows, 1) if pos[0] == "b" else (1, rows)
+        for r in (first, second):
+            if free(r):
+                return r, col, text
+        return None
+
+    def draw_caption(self, meta: dict, frame) -> bool:
+        spot = self.caption_spot(meta, frame)
+        if spot is None:
+            return False
+        row, col, text = spot
         c = self.theme.rgb("muted")
         r, g, b = (c >> 16) & 255, (c >> 8) & 255, c & 255
         self.term.write(f"\x1b[{row};{col}H\x1b[38;2;{r};{g};{b}m{text}\x1b[0m")
         self.term.flush()
+        return True
 
     def choose_mode(self, meta: dict) -> str:
         forced = self.args.effect
@@ -321,6 +329,12 @@ class Slideshow:
                 term.poll(self.hold_top)
             top = self.scroll_rest(grid, top, rows, x_off, slide_started)
         frame = compose(grid, cols, rows, x_off, y_off, top)
+        if tall and self.caption_spot(meta, frame) is None and self.cfg.get("caption", True):
+            # the art fills the last row: scroll once more so the caption gets
+            # an empty line instead of covering the picture
+            self.painter.scroll_blank()
+            top += 1
+            frame = compose(grid, cols, rows, x_off, y_off, top)
         self.painter.prime(frame)
         self.draw_caption(meta, frame)
         term.poll(self.hold)
