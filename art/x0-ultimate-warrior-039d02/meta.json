@@ -1,0 +1,68 @@
+{
+  "id": "x0-ultimate-warrior-039d02",
+  "version": 1,
+  "title": "the ultimate warrior",
+  "author": "xeR0",
+  "group": "blocktronics",
+  "year": 2020,
+  "date": "20200401",
+  "cols": 79,
+  "rows": 41,
+  "format": "ansi",
+  "encoding": "cp437",
+  "ice": true,
+  "wrap": "immediate",
+  "font": "IBM VGA",
+  "letter_spacing": "8px",
+  "aspect": "square",
+  "animated": false,
+  "bytes": 7854,
+  "hash": "sha256:039d02b18b9c4ae864a5c79fe2066a034986862ed16e08ee5efe0da179d1924b",
+  "original": "original.ans",
+  "sauce": {
+    "title": "the ultimate warrior",
+    "author": "xeR0",
+    "group": "blocktronics",
+    "date": "20200401",
+    "filesize": 7592,
+    "datatype": 1,
+    "filetype": 1,
+    "tinfo1": 80,
+    "tinfo2": 41,
+    "tinfo3": 0,
+    "tinfo4": 0,
+    "tflags": 19,
+    "tinfos": "IBM VGA",
+    "comments": [
+      "x0^67^aMi5H^iMP!",
+      "https://0w.nz"
+    ]
+  },
+  "comments": [
+    "x0^67^aMi5H^iMP!",
+    "https://0w.nz"
+  ],
+  "source": {
+    "provider": "sixteencolors",
+    "entry": "file/blocktronics-blockmania/x0-ultimate-warrior.ans",
+    "url": "https://16colo.rs/pack/blocktronics-blockmania/x0-ultimate-warrior.ans",
+    "pack": "blocktronics-blockmania",
+    "image_url": "https://16colo.rs/pack/blocktronics-blockmania/x1/x0-ultimate-warrior.ans.png",
+    "license_note": "Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved.",
+    "fetched": "2026-09-10T13:43:36Z"
+  },
+  "tags": [
+    "mask",
+    "ultimate warrior",
+    "wrestling",
+    "wwf"
+  ],
+  "category": "modern",
+  "enabled": true,
+  "favorite": false,
+  "bundled": true,
+  "added": "2026-09-10T13:43:36Z",
+  "thumb": null,
+  "render": null,
+  "warnings": []
+}

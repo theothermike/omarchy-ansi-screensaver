@@ -84,8 +84,8 @@ def cmd_curate(args) -> int:
             continue
         for it in items:
             m = it.meta or {}
-            cols, r = m.get("cols") or 0, m.get("rows") or 0
-            if cols != args.cols or not (args.min_rows <= r <= args.max_rows):
+            cols, r = m.get("cols") or 80, m.get("rows") or 0
+            if cols != args.cols or (r and not (args.min_rows <= r <= args.max_rows)):
                 continue
             rows.append({"pack": pack, "entry": it.id, "file": m.get("file"), "title": it.label, "author": m.get("author"),
                          "group": m.get("group"), "year": m.get("year"), "cols": cols, "rows": r, "format": m.get("format"),

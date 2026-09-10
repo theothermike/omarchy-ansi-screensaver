@@ -15,6 +15,10 @@ PAGE = 60
 MIRROR = "https://raw.githubusercontent.com/sixteencolors/sixteencolors-archive/master"
 
 
+def _s(v) -> str:
+    return "" if v is None else str(v)
+
+
 def _abs(u: str | None) -> str | None:
     if not u:
         return None
@@ -172,8 +176,8 @@ class SixteenColors(Provider):
             low = name.lower()
             if low.startswith("file_id") or low.endswith((".diz", ".nfo")):
                 continue
-            artists = ", ".join(f.get("artists") or [])
-            author = sauce.get("Author") or artists
+            artists = ", ".join(_s(a) for a in (f.get("artists") or []))
+            author = _s(sauce.get("Author")) or artists
             year = info.get("year")
             d = str(sauce.get("Date") or "")
             if len(d) >= 4 and d[:4].isdigit():
@@ -182,10 +186,11 @@ class SixteenColors(Provider):
             x1 = (f.get("file") or {}).get("x1") or {}
             flags = sauce.get("ansiflags") or {}
             entries.append(Entry(
-                type="item", id=f"file/{pack}/{name}", label=sauce.get("Title") or name,
-                sublabel=" · ".join(s for s in [author, sauce.get("Group") or ""] if s),
-                meta={"author": author, "group": sauce.get("Group") or "", "year": year,
-                      "cols": sauce.get("Tinfo1"), "rows": sauce.get("Tinfo2"), "size": sauce.get("Filesize"),
+                type="item", id=f"file/{pack}/{name}", label=_s(sauce.get("Title")) or name,
+                sublabel=" · ".join(s for s in [author, _s(sauce.get("Group"))] if s),
+                meta={"author": author, "group": _s(sauce.get("Group")), "year": year,
+                      "cols": sauce.get("Tinfo1") or (80 if low.endswith((".ans", ".ansi")) else None),
+                      "rows": sauce.get("Tinfo2"), "size": sauce.get("Filesize"),
                       "format": "ansi" if low.endswith((".ans", ".ansi")) else "ascii", "ice": bool(flags.get("ice")),
                       "font": sauce.get("Tinfos") or "", "tags": f.get("content") or [], "file": name},
                 thumb_url=_abs(tn.get("uri")) if tn else _abs(f"/pack/{pack}/tn/{name}.png"),
@@ -235,8 +240,8 @@ class SixteenColors(Provider):
         hint = "latin1" if any(k in str(sauce.get("Tinfos") or "").lower() for k in ("amiga", "topaz")) else None
         x1 = (f.get("file") or {}).get("x1") or {}
         return Fetched(data=data, filename=name,
-                       credits=Credits(title=sauce.get("Title") or "", author=sauce.get("Author") or ", ".join(f.get("artists") or []),
-                                       group=sauce.get("Group") or "", year=year, date=d, tags=list(f.get("content") or [])),
+                       credits=Credits(title=_s(sauce.get("Title")), author=_s(sauce.get("Author")) or ", ".join(_s(a) for a in (f.get("artists") or [])),
+                                       group=_s(sauce.get("Group")), year=year, date=d, tags=[_s(t) for t in (f.get("content") or [])]),
                        source_url=f"{BASE}/pack/{pack}/{urllib.parse.quote(name)}", license_note=self.license_note,
                        image_url=_abs(x1.get("uri")) if x1 else _abs(f"/pack/{pack}/x1/{name}.png"), encoding_hint=hint, pack=pack)
 

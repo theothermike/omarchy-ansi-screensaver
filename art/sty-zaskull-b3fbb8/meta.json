@@ -1,0 +1,66 @@
+{
+  "id": "sty-zaskull-b3fbb8",
+  "version": 1,
+  "title": "pizzaskull_cassafrass",
+  "author": "stygian",
+  "group": "blocktronics",
+  "year": 2019,
+  "date": "20190728",
+  "cols": 80,
+  "rows": 63,
+  "format": "ansi",
+  "encoding": "cp437",
+  "ice": true,
+  "wrap": "immediate",
+  "font": "IBM VGA",
+  "letter_spacing": "8px",
+  "aspect": null,
+  "animated": false,
+  "bytes": 19583,
+  "hash": "sha256:b3fbb8ead21e1b492997f6fd44dccef920ce1090f3fc3f8fbe1f7ff94bb76789",
+  "original": "original.ans",
+  "sauce": {
+    "title": "pizzaskull_cassafrass",
+    "author": "stygian",
+    "group": "blocktronics",
+    "date": "20190728",
+    "filesize": 19385,
+    "datatype": 1,
+    "filetype": 1,
+    "tinfo1": 80,
+    "tinfo2": 65,
+    "tinfo3": 0,
+    "tinfo4": 0,
+    "tflags": 3,
+    "tinfos": "IBM VGA",
+    "comments": [
+      "Made with moebius"
+    ]
+  },
+  "comments": [
+    "Made with moebius"
+  ],
+  "source": {
+    "provider": "sixteencolors",
+    "entry": "file/blocktronics-dsotb/sty-zaskull.ans",
+    "url": "https://16colo.rs/pack/blocktronics-dsotb/sty-zaskull.ans",
+    "pack": "blocktronics-dsotb",
+    "image_url": "https://16colo.rs/pack/blocktronics-dsotb/x1/sty-zaskull.ans.png",
+    "license_note": "Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved.",
+    "fetched": "2026-09-10T13:43:34Z"
+  },
+  "tags": [
+    "darth bellany",
+    "pizza",
+    "skull",
+    "tattoo"
+  ],
+  "category": "modern",
+  "enabled": true,
+  "favorite": false,
+  "bundled": true,
+  "added": "2026-09-10T13:43:34Z",
+  "thumb": null,
+  "render": null,
+  "warnings": []
+}

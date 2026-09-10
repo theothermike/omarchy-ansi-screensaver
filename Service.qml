@@ -108,22 +108,32 @@ Item {
                                 && !root.stayAwake && root.screensaverSeconds > 0
   property bool launchedThisCycle: false
 
+  // The real takeover monitor. Disabled while a test runs so the two never
+  // race; re-enabling registers a fresh idle notification with the compositor.
   IdleMonitor {
     id: idleMonitor
-    enabled: root.armed || root.testSeconds > 0
-    timeout: root.testSeconds > 0 ? root.testSeconds : root.timeoutSeconds
+    enabled: root.armed && root.testSeconds === 0
+    timeout: root.timeoutSeconds
     respectInhibitors: true
-    onIsIdleChanged: root.handleIdle()
+    onIsIdleChanged: root.handleIdle(isIdle, false)
+  }
+  // "Test in N s": a separate monitor created on demand, so the timeout
+  // change always takes effect.
+  IdleMonitor {
+    id: testMonitor
+    enabled: root.testSeconds > 0
+    timeout: root.testSeconds > 0 ? root.testSeconds : 60
+    respectInhibitors: false
+    onIsIdleChanged: root.handleIdle(isIdle, true)
   }
 
-  function handleIdle() {
-    if (idleMonitor.isIdle) {
+  function handleIdle(isIdle, isTest) {
+    if (isIdle) {
       if (root.launchedThisCycle) return
       root.launchedThisCycle = true
-      var wasTest = root.testSeconds > 0
-      root.testSeconds = 0
-      root.logEvent(wasTest ? "idle test fired" : "idle -> launch")
-      root.launch(false)
+      if (isTest) root.testSeconds = 0
+      root.logEvent(isTest ? "idle test fired" : "idle -> launch")
+      root.launch(isTest)
     } else {
       root.launchedThisCycle = false
     }
@@ -336,7 +346,7 @@ Item {
     return JSON.stringify({
       armed: root.armed, takeoverEnabled: root.takeoverEnabled, screensaverOff: root.screensaverOff,
       stayAwake: root.stayAwake, flagsLoaded: root.flagsLoaded, screensaverSeconds: root.screensaverSeconds,
-      leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: idleMonitor.isIdle,
+      leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: idleMonitor.isIdle, testIdle: testMonitor.isIdle,
       launchedThisCycle: root.launchedThisCycle, testSeconds: root.testSeconds,
       library: root.library.length, loading: root.loading, error: root.lastError, lastEvent: root.lastEvent,
       job: root.job ? { name: root.job.name, n: root.job.n, total: root.job.total, label: root.job.label } : null
