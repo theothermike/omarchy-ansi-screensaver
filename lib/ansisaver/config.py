@@ -9,14 +9,18 @@ from typing import Any
 
 from . import paths
 
+# Weights for the random pick. Effects measured slower than ~10 s on a dense
+# 80x108 piece at 138x46 (see effects.MEASURED_SECONDS) are off by default.
 DEFAULT_EFFECTS = {
-    "beams": 3, "blackhole": 2, "bouncyballs": 1, "burn": 3, "crumble": 2, "decrypt": 3,
-    "errorcorrect": 1, "expand": 2, "fireworks": 2, "highlight": 2, "laseretch": 1, "matrix": 3,
-    "middleout": 2, "orbittingvolley": 2, "pour": 2, "print": 2, "rain": 2, "randomsequence": 2,
-    "rings": 1, "scattered": 2, "slice": 2, "slide": 3, "smoke": 2, "spotlights": 2, "spray": 2,
-    "swarm": 1, "sweep": 3, "synthgrid": 1, "thunderstorm": 2, "unstable": 2, "vhstape": 2,
-    "waves": 2, "wipe": 3,
-    "colorshift": 0, "overflow": 0, "binarypath": 0, "bubbles": 0,
+    "expand": 2, "highlight": 2, "middleout": 2, "randomsequence": 2, "scattered": 2, "slice": 2,
+    "slide": 3, "smoke": 2, "spotlights": 2, "spray": 2, "sweep": 3, "synthgrid": 1, "unstable": 2,
+    "vhstape": 2, "waves": 2, "wipe": 3, "fireworks": 2, "orbittingvolley": 2, "rings": 1,
+    # slow (> 10 s): off unless enabled in the Effects tab
+    "beams": 0, "blackhole": 0, "bouncyballs": 0, "burn": 0, "crumble": 0, "decrypt": 0, "errorcorrect": 0,
+    "laseretch": 0, "matrix": 0, "pour": 0, "print": 0, "rain": 0, "swarm": 0, "thunderstorm": 0,
+    "binarypath": 0, "bubbles": 0,
+    # not interesting on coloured art
+    "colorshift": 0, "overflow": 0,
 }
 DEFAULT_TRANSITIONS = {"fade": 3, "dissolve": 2, "wipe": 2, "melt": 3, "curtain": 1,
                        "glitch": 2, "blocks": 2, "cut": 0}
@@ -37,7 +41,7 @@ DEFAULTS: dict[str, Any] = {
     "ascii_color": "theme-gradient",  # theme-gradient | theme-foreground | vga-grey
     "include_branding": 0,         # show branding art every N slides (0 = never)
     "reveal": {"ttfx": 70, "baud": 30},
-    "ttfx": {"existing_color_handling": "always", "frame_rate_scale": 1.0, "max_seconds": 30,
+    "ttfx": {"existing_color_handling": "always", "frame_rate_scale": 1.0, "max_seconds": 15,
              "effects": dict(DEFAULT_EFFECTS)},
     "baud": {"rate": "auto", "target_seconds": 20, "max_seconds": 45, "show_cursor": True},
     "transitions": {"fps": 30, "out": dict(DEFAULT_TRANSITIONS)},

@@ -29,5 +29,6 @@ def build(network: bool = False) -> dict:
             "recommended": sorted(k for k, v in C.DEFAULT_EFFECTS.items() if v > 0),
             "transitions": transitions.ALL,
             "defaults": {"ttfx": C.DEFAULT_EFFECTS, "transitions": C.DEFAULT_TRANSITIONS},
+            "seconds": effects.MEASURED_SECONDS,
         },
     }

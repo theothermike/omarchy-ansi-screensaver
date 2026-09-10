@@ -77,7 +77,7 @@ Item {
         Button { text: "All"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent; onClicked: tab.setAll("ttfx", tab.ttfxNames, true) }
         Button { text: "None"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent; onClicked: tab.setAll("ttfx", tab.ttfxNames, false) }
         Button { text: "Recommended"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent; onClicked: tab.setAll("ttfx", tab.ttfxNames, "recommended") }
-        Text { anchors.verticalCenter: parent.verticalCenter; text: "click a chip to toggle; weights are editable in config.json (ttfx.effects)"; color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+        Text { anchors.verticalCenter: parent.verticalCenter; text: "click to toggle · ~seconds measured on a dense full-screen piece · effects over 10 s are off in Recommended"; color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
       }
       Flow {
         width: parent.width
@@ -86,7 +86,9 @@ Item {
           model: tab.ttfxNames
           delegate: Button {
             required property string modelData
-            text: modelData + (tab.weight("ttfx", modelData) > 1 ? " ×" + tab.weight("ttfx", modelData) : "")
+            readonly property real secs: tab.effects && tab.effects.seconds && tab.effects.seconds[modelData] ? tab.effects.seconds[modelData] : 0
+            text: modelData + (secs > 0 ? " ~" + Math.round(secs) + "s" : "") + (tab.weight("ttfx", modelData) > 1 ? " ×" + tab.weight("ttfx", modelData) : "")
+            tooltipText: secs > 10 ? "slow: about " + Math.round(secs) + " s to reveal a dense full-screen piece" : (secs > 0 ? "about " + Math.round(secs) + " s on a dense piece" : "")
             selected: tab.weight("ttfx", modelData) > 0
             bordered: true; fontSize: Style.font.caption
             foreground: tab.foreground; accent: tab.accent

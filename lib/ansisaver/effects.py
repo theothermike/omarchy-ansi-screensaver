@@ -46,7 +46,20 @@ TABLE: dict[str, tuple[int, str, list]] = {
     "bubbles": (240, "always", []),
 }
 ALL_EFFECTS = sorted(TABLE)
+
+# Seconds to reveal a dense 80x108 piece on a 138x46 terminal at the table's
+# frame rates (measured with --virtual-clock; smaller pieces are faster).
+MEASURED_SECONDS = {
+    "laseretch": 25.4, "matrix": 22.1, "bubbles": 20.2, "swarm": 20.0, "bouncyballs": 16.4, "burn": 16.0,
+    "print": 14.9, "thunderstorm": 14.3, "rain": 13.3, "crumble": 13.0, "pour": 12.9, "binarypath": 12.7,
+    "errorcorrect": 12.6, "blackhole": 12.2, "decrypt": 11.3, "beams": 10.3, "rings": 9.9, "spray": 9.6,
+    "fireworks": 9.3, "orbittingvolley": 9.3, "colorshift": 8.8, "vhstape": 8.0, "spotlights": 8.0,
+    "waves": 7.0, "unstable": 6.5, "smoke": 6.5, "slice": 6.2, "scattered": 4.7, "overflow": 4.7,
+    "slide": 4.3, "expand": 3.9, "sweep": 3.7, "randomsequence": 3.6, "middleout": 3.2, "wipe": 3.1,
+    "highlight": 2.9, "synthgrid": 11.8,
+}
 GRADIENT_DIRECTIONS = ["vertical", "horizontal", "diagonal", "radial"]
+NO_FINAL_GRADIENT = {"synthgrid"}   # uses --text-gradient-* instead
 
 
 def _color(theme: Theme, key: str) -> str:
@@ -81,6 +94,9 @@ def build_argv(effect: str, input_path: str, cols: int, rows: int, *, theme: The
     for flag, keys in extra:
         argv.append(flag)
         argv.extend(_color(theme, k) for k in keys)
-    argv += ["--final-gradient-stops", *theme.gradient_stops(),
-             "--final-gradient-direction", rng.choice(GRADIENT_DIRECTIONS)]
+    if effect in NO_FINAL_GRADIENT:
+        argv += ["--text-gradient-stops", *theme.gradient_stops()]
+    else:
+        argv += ["--final-gradient-stops", *theme.gradient_stops(),
+                 "--final-gradient-direction", rng.choice(GRADIENT_DIRECTIONS)]
     return argv
