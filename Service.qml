@@ -316,9 +316,13 @@ Item {
 
   // One long job at a time (add --all, thumbs, fetch, import of folders).
   property var job: null
+  // The most recent finished job: { name, rc, error, result, summary, at }.
+  // The overlay shows `summary` in its status line so a run that stops short
+  // (every source ran dry, an error) says so instead of just vanishing.
+  property var lastJob: null
   function startJob(name, args) {
     if (root.job) { root.logEvent("job busy: " + root.job.name); return "busy" }
-    var state = { name: name, n: 0, total: 0, label: "", proc: null, error: "" }
+    var state = { name: name, n: 0, total: 0, label: "", proc: null, error: "", result: null }
     state.proc = root.runCli(args.concat(["--progress"]), {
       onLine: function(line) {
         var m = /^progress (\d+)\/(\d+) ?(.*)$/.exec(line)
@@ -326,16 +330,33 @@ Item {
           root.job = Object.assign({}, root.job, { n: parseInt(m[1]), total: parseInt(m[2]), label: m[3] })
         } else if (line.indexOf("error ") === 0) {
           root.job = Object.assign({}, root.job, { error: line.substring(6) })
+        } else if (line.indexOf("done ") === 0) {
+          try { root.job = Object.assign({}, root.job, { result: JSON.parse(line.substring(5)) }) } catch (e) {}
         }
       },
       onDone: function(exitCode, collected) {
         var j = root.job
         root.job = null
-        root.logEvent("job " + name + " done rc=" + exitCode + (j && j.error ? " " + j.error : ""))
+        var summary = root.jobSummary(name, exitCode, j)
+        root.lastJob = { name: name, rc: exitCode, error: j ? j.error : "", result: j ? j.result : null, summary: summary, at: Date.now() }
+        root.logEvent("job " + summary + " rc=" + exitCode)
+        var failed = (j && j.result && j.result.failed) || []
+        for (var k = 0; k < Math.min(5, failed.length); k++) root.logEvent("job " + name + " failed: " + JSON.stringify(failed[k]))
       }
     })
     root.job = state
     return "ok"
+  }
+  function jobSummary(name, rc, j) {
+    var r = (j && j.result) || {}
+    var parts = [name]
+    if (r.added) parts.push("added " + r.added.length + (r.requested ? "/" + r.requested : ""))
+    if (r.skipped && r.skipped.length) parts.push(r.skipped.length + " already in the library")
+    if (r.failed && r.failed.length) parts.push(r.failed.length + " failed")
+    if (r.stopped) parts.push("stopped: " + r.stopped)
+    else if (j && j.error) parts.push(j.error)
+    if (rc !== 0 && !(j && j.error) && !r.stopped) parts.push("exit " + rc)
+    return parts.join(" · ")
   }
   function cancelJob() {
     if (root.job && root.job.proc) root.job.proc.signal(15)
@@ -442,5 +463,11 @@ Item {
     function set(key: string, valueJson: string): string { return root.setConfig(key, valueJson) }
     function setIdle(key: string, seconds: string): string { return root.setOmarchyIdle(key, seconds) }
     function library(action: string, id: string): string { return root.libraryAction(action, id) }
+    // omarchy-shell ansisaver random 100 all | random 25 demozoo
+    function random(count: string, source: string): string {
+      var args = ["random", "--count", String(parseInt(count) || 5)]
+      if (!source || source === "" || source === "all") args.push("--all"); else args.push("--source", source)
+      return root.startJob("random import", args)
+    }
   }
 }

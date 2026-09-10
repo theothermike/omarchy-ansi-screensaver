@@ -269,7 +269,10 @@ class Interpreter:
             self.x = max(0, self.x - n)
         elif final == "J":
             n = self._params(raw)[0]
-            self.stats["clears"] += 1
+            if any(self.rows):
+                # a clear over painted rows means a new frame; the customary
+                # ESC[2J at the very top of a static piece does not
+                self.stats["clears"] += 1
             if n == 2:
                 self.rows = []
                 self.x = self.y = 0

@@ -39,6 +39,10 @@ Item {
 
   function status(msg) { root.statusText = msg || "" }
   function focusKeys() { keyCatcher.forceActiveFocus() }
+  Connections {
+    target: root.service
+    function onLastJobChanged() { if (root.service && root.service.lastJob) root.status(root.service.lastJob.summary) }
+  }
 
   // --- lifecycle --------------------------------------------------------
   function open(payloadJson) {

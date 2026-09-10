@@ -100,10 +100,9 @@ def play(show, meta: dict, grid, x_off: int, y_off: int) -> int:
         raise ImportError("no original for branding art")
     text = L.load_original_text(meta)
     sink = TermSink(term, rows, x_off, y_off)
-    it = Interpreter(cols=int(meta.get("cols") or 80) if meta.get("format") != "ascii" else 0,
-                     ice=bool(meta.get("ice")), wrap=meta.get("wrap", "immediate"), sink=sink.put)
-    if meta.get("sauce") and meta["sauce"].get("tinfo1"):
-        it.cols = int(meta["sauce"]["tinfo1"]) if 1 <= int(meta["sauce"]["tinfo1"]) <= 1000 else it.cols
+    # Same wrap column as the import-time normaliser (see L.canvas_columns):
+    # using the measured width here put a blank line after every full row.
+    it = Interpreter(cols=L.canvas_columns(meta), ice=bool(meta.get("ice")), wrap=meta.get("wrap", "immediate"), sink=sink.put)
     cps = choose_rate(show.cfg, len(text))
     show_cursor = bool(C.get(show.cfg, "baud.show_cursor", True))
     term.clear()

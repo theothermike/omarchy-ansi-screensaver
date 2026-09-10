@@ -61,6 +61,27 @@ def classify(sauce: S.Sauce | None, stats: dict, encoding: str, colored: bool) -
     return "utf8" if encoding == "utf8" else "ascii"
 
 
+def canvas_columns(meta: dict) -> int:
+    """The width the interpreter wraps at: what the piece was normalised with.
+    SAUCE says so when present; plain-text extensions never wrap; classic
+    ANSI is an 80-column canvas. Never the measured painted width (`cols`):
+    a piece whose rows are exactly as wide as the canvas wraps one column
+    early with that and gets a blank line after every full row."""
+    c = meta.get("columns")
+    if isinstance(c, int) and c >= 0:
+        return c
+    sauce = meta.get("sauce") or {}
+    try:
+        if int(sauce.get("datatype", -1)) == 1 and 1 <= int(sauce.get("tinfo1", 0)) <= 1000:
+            return int(sauce["tinfo1"])
+    except (TypeError, ValueError):
+        pass
+    if meta.get("format") in ("ascii", "utf8"):
+        return 0
+    ext = os.path.splitext(meta.get("original") or "")[1].lower()
+    return 0 if ext in (".asc", ".txt", ".nfo", ".diz") else 80
+
+
 def normalize(data: bytes, filename: str, *, encoding: str | None = None, wrap: str = "immediate",
               bce: bool = True, columns: int | None = None) -> Normalized:
     ext = os.path.splitext(filename)[1].lower()
@@ -100,6 +121,7 @@ def normalize(data: bytes, filename: str, *, encoding: str | None = None, wrap: 
         "year": (sauce.year if sauce else None),
         "date": (sauce.date if sauce else ""),
         "cols": max(grid.painted_cols, 1),
+        "columns": columns,          # canvas width the interpreter wrapped at
         "rows": grid.height,
         "format": fmt,
         "encoding": enc,
@@ -252,7 +274,7 @@ def ensure_flat(meta: dict) -> Path:
     norm = normalize(data, meta["original"], encoding=meta.get("encoding"), wrap=meta.get("wrap", "immediate"))
     with open(flat, "w", encoding="utf-8", newline="\n") as f:
         f.write(grid_to_flat(norm.grid))
-    for k in ("cols", "rows", "format", "animated"):
+    for k in ("cols", "columns", "rows", "format", "animated"):
         meta[k] = norm.meta[k]
     meta["version"] = NORMALIZER_VERSION
     save_meta(meta)

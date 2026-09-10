@@ -40,8 +40,9 @@ def import_fetched(provider, entry_id: str, f: Fetched, args=None, tags=None) ->
         norm.meta["group"] = c.group
     if not norm.meta.get("year") and c.year:
         norm.meta["year"] = c.year
-    if c.tags:
-        norm.meta["tags"] = sorted(set((norm.meta.get("tags") or []) + list(c.tags) + list(tags or [])))
+    extra = list(c.tags) + list(tags or [])
+    if extra:
+        norm.meta["tags"] = sorted(set((norm.meta.get("tags") or []) + extra))
     ov = _overrides(args, f) if args else {}
     if f.rating:
         norm.meta["rating"] = dict(f.rating)
@@ -225,9 +226,19 @@ def _save_history(h: set[str]) -> None:
         pass
 
 
+RANDOM_MAX_BYTES = 256 * 1024   # random picks bigger than this are text dumps, not art
+
+
 def cmd_random(args) -> int:
     """Import N random pieces from one source or all of them (round-robin);
-    --top restricts to highly rated items where a source has ratings."""
+    --top restricts to highly rated items where a source has ratings.
+
+    A pick that yields nothing new is a miss: picked before, already in the
+    library, or a piece that cannot be fetched or imported. Misses are normal
+    (small catalogues run dry, Demozoo productions often have no download or
+    no text art inside), so a source is only set aside after a run of them;
+    an offline/source error sets it aside at once, and an overall attempt
+    budget keeps the job finite. The result says why a run stopped short."""
     import random
     cfg = C.load()
     try:
@@ -236,67 +247,94 @@ def cmd_random(args) -> int:
         return fail(args, str(e))
     n = max(1, int(args.count or 1))
     rng = random.Random(args.seed) if getattr(args, "seed", None) else random.Random()
+    top = bool(getattr(args, "top", False))
     prog = Progress(args.progress)
     history = _load_history()
-    result: dict = {"added": [], "skipped": [], "failed": [], "sources": [s.id for s in srcs]}
+    labels = {s.id: s.label for s in srcs}
+    result: dict = {"requested": n, "added": [], "skipped": [], "failed": [], "sources": [s.id for s in srcs], "exhausted": {}}
     order = list(srcs)
     rng.shuffle(order)
-    i = 0
-    done = 0
-    stalled: dict[str, int] = {}
-    while done < n and order:
+    miss_limit = max(8, min(40, n))   # consecutive misses before a source is set aside
+    budget = n * 8 + 40               # picks in total, successful or not
+    misses: dict[str, int] = {}
+    last_miss: dict[str, str] = {}
+    i = attempts = done = 0
+
+    def miss(src, why: str) -> None:
+        misses[src.id] = misses.get(src.id, 0) + 1
+        last_miss[src.id] = why
+        prog(min(done + 1, n), n, f"{src.label}: {why} ({misses[src.id]}/{miss_limit} misses)")
+
+    def set_aside(src, why: str) -> None:
+        nonlocal order
+        result["exhausted"][src.id] = why
+        order = [s for s in order if s.id != src.id]
+
+    while done < n and order and attempts < budget:
+        attempts += 1
         src = order[i % len(order)]
         i += 1
-        if stalled.get(src.id, 0) >= 4:
-            order = [s for s in order if s.id != src.id]
+        if misses.get(src.id, 0) >= miss_limit:
+            set_aside(src, f"{misses[src.id]} misses in a row, last: {last_miss.get(src.id, '')}")
             continue
         prog(done + 1, n, f"picking from {src.label}")
         try:
-            items = src.random_items(1, rng, top=bool(getattr(args, "top", False)))
+            items = src.random_items(1, rng, top=top)
         except Offline as e:
             result["failed"].append({"source": src.id, "reason": f"offline: {e}"})
-            stalled[src.id] = 99
+            set_aside(src, f"offline: {e}")
             continue
         except SourceError as e:
             result["failed"].append({"source": src.id, "reason": str(e)})
-            stalled[src.id] = 99
+            set_aside(src, str(e))
             continue
         except Exception as e:  # noqa: BLE001
             result["failed"].append({"source": src.id, "reason": str(e)})
-            stalled[src.id] = stalled.get(src.id, 0) + 1
+            miss(src, f"error: {e}")
             continue
         if not items:
-            stalled[src.id] = stalled.get(src.id, 0) + 1
+            miss(src, "nothing found on this walk")
             continue
         item = items[0]
         key = f"{src.id}:{item.id}"
         if key in history:
-            stalled[src.id] = stalled.get(src.id, 0) + 1
+            miss(src, f"{item.label}: picked before")
             continue
         try:
             f = src.fetch(item.id)
-            meta, created = import_fetched(src, item.id, f, None, tags=["random"] + (["top-rated"] if getattr(args, "top", False) else []))
+            if len(f.data) > RANDOM_MAX_BYTES:
+                raise SourceError(f"{len(f.data) // 1024} KB is too big for a piece (OCR dump or e-zine?)")
+            meta, created = import_fetched(src, item.id, f, None, tags=["random"] + (["top-rated"] if top else []))
         except Exception as e:  # noqa: BLE001
             result["failed"].append({"source": src.id, "entry": item.id, "reason": str(e)})
-            stalled[src.id] = stalled.get(src.id, 0) + 1
+            miss(src, f"{item.label}: {e}")
             continue
         history.add(key)
         _save_history(history)          # survive an interrupted job
         if created:
             done += 1
-            stalled[src.id] = 0
+            misses[src.id] = 0
             result["added"].append({"source": src.id, "id": meta["id"], "title": meta.get("title"), "entry": item.id})
             prog(done, n, f"{src.label}: {meta.get('title') or item.label}")
         else:
             result["skipped"].append({"source": src.id, "id": meta["id"], "reason": "duplicate"})
-            stalled[src.id] = stalled.get(src.id, 0) + 1
+            miss(src, f"{item.label}: already in the library")
     _save_history(history)
+    result["attempts"] = attempts
+    if done < n:
+        if not order:
+            result["stopped"] = "every source ran dry: " + "; ".join(f"{labels.get(k, k)}: {v}" for k, v in result["exhausted"].items())
+        else:
+            result["stopped"] = f"gave up after {attempts} picks"
     if args.progress:
+        if result.get("stopped"):
+            prog.error(f"stopped after {done}/{n}: {result['stopped']}")
         prog.done(result)
     else:
         human = "\n".join([f"added   {r['id']:44} {r['source']:14} {r.get('title') or ''}" for r in result["added"]]
                           + [f"skipped {r['id']} (duplicate)" for r in result["skipped"]]
-                          + [f"FAILED  {r['source']}: {r['reason']}" for r in result["failed"]]) or "nothing added"
+                          + [f"FAILED  {r['source']}: {r['reason']}" for r in result["failed"]]
+                          + ([f"stopped after {done}/{n}: {result['stopped']}"] if result.get("stopped") else [])) or "nothing added"
         emit(args, result, human)
     return 0 if result["added"] else 1
 

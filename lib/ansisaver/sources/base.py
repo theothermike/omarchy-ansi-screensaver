@@ -89,10 +89,16 @@ SCENE_EXTS = {"ans", "asc", "txt", "nfo", "diz", "ansi", "ice", "acd", "cia", "d
               "sbn", "nwa", "dark", "trbl", "jed", "ext", "sdl", "ptk", "fst", "fli"}
 
 
+INFO_STEMS = ("readme", "license", "licence", "copying", "install", "changelog", "manifest", "index", "file_id", "descript")
+
+
 def is_art_name(name: str) -> bool:
     if "." not in name:
         return False
-    return name.lower().rsplit(".", 1)[-1] in SCENE_EXTS
+    stem, ext = name.lower().rsplit(".", 1)
+    if ext in ("txt", "nfo", "diz") and stem.startswith(INFO_STEMS):
+        return False  # a pack's readme/license, not a piece
+    return ext in SCENE_EXTS
 
 
 class Provider:

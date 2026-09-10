@@ -59,12 +59,18 @@ class ArchiveOrg(Provider):
             for f in files:
                 name = f.get("name") or ""
                 low = name.lower()
+                # the archive's own derivatives (OCR text, metadata dumps) are .txt but not art
+                if f.get("source") == "derivative" or low.endswith(("_djvu.txt", "_meta.txt", "_files.xml", "_meta.xml")):
+                    continue
                 if is_art_name(posixpath.basename(name)):
                     entries.append(Entry("item", f"file/{ident}/{name}", posixpath.basename(name), f"{int(f.get('size') or 0) // 1024} KB",
                                          meta={"size": f.get("size")}, source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(name)}"))
                 elif is_archive_name(low):
                     entries.append(Entry("collection", f"zip/{ident}/{name}", posixpath.basename(name), f"zip · {int(f.get('size') or 0) // 1024} KB",
                                          can_add_all=True, source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(name)}"))
+            # an item with .ans/.asc pieces: its .txt files are notes and OCR dumps, not art
+            if any(e.type == "item" and not e.label.lower().endswith((".txt", ".nfo", ".diz")) for e in entries):
+                entries = [e for e in entries if e.type != "item" or not e.label.lower().endswith((".txt", ".nfo", ".diz"))]
             return self.listing(path, entries, [title], notice=None if entries else "no text-art files in this item")
         if seg.startswith("zip/"):
             ident, _, name = seg[4:].partition("/")
@@ -88,6 +94,13 @@ class ArchiveOrg(Provider):
             return Fetched(data=data, filename=posixpath.basename(member), credits=Credits(), pack=posixpath.basename(zname).rsplit(".", 1)[0],
                            source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(zname)}", license_note=self.license_note)
         raise SourceError(f"not a file: {entry_id}")
+
+    def _random_walk(self, rng, max_depth: int = 6):
+        # Random picks: scene formats only. The archive's .txt files are mostly
+        # notes, OCR dumps and CD-ROM shovelware; ASCII art has better sources.
+        # (random_items retries this walk on its own.)
+        e = super()._random_walk(rng, max_depth)
+        return None if e is not None and e.label.lower().endswith((".txt", ".nfo", ".diz")) else e
 
     def ping(self):
         return self.http.ping("https://archive.org/metadata/textfiles")

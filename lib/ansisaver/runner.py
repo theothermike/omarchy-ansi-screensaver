@@ -314,6 +314,7 @@ class Slideshow:
         y_off = 0 if tall else max(0, (rows - prows) // 2)
         top = 0
         mode = self.choose_mode(meta)
+        log.info("slide %d piece=%s mode=%s %dx%d", self.slide_no, meta["id"], mode, pcols, prows)
         slide_started = time.monotonic()
         frame = compose(grid, cols, rows, x_off, y_off, top)
         if mode == "baud":
