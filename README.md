@@ -94,7 +94,7 @@ Omarchy's screensaver-off toggle or stay-awake is set.
 |---|---|
 | Gallery | thumbnails of the library with quick actions under each card (▶ preview · ☆ star · ● enable/disable · ✕ remove); double-click previews, right-click toggles enabled; search, filters (enabled/disabled/starred/ANSI/ASCII), sort by newest/title/artist/year/height/rating; hover for a full render; import files/folders/zips/URLs |
 | Sources | one tree browser for every art source: open packs/categories, see thumbnails or text previews (**Preview all** renders the rest on demand), **Add** a piece or **Add all** of a pack; **Random import** N pieces from this source or all of them (walks each catalogue at random, never repeats a pick), or the **highest rated** where a source has ratings (asciiart.eu likes/views — build its rating index once); sort by rating; add your own GitHub repos / HTTP indexes |
-| Effects | which ttfx effects and out-transitions play — each chip shows its measured duration (`matrix ~22s`), **Recommended** restores the under-10-second set; reveal mix (ttfx vs. baud), colour handling, effect speed, baud rate, the 15 s effect time limit; right-click an effect to preview it |
+| Effects | which ttfx effects and out-transitions play — each chip shows its measured duration (`matrix ~22s`), **Recommended** restores the under-10-second set; reveal mix (ttfx vs. baud), colour handling (colour-only effects such as highlight and spotlights always animate with the effect's palette), effect speed, baud rate, the 15 s effect time limit; right-click an effect to preview it |
 | Settings | hold time, scroll speed and pause, order, caption, logo interstitial, ASCII colouring; **Gallery: confirm before removing** (off = one click removes); columns, font (+ Install VGA font), wide pieces, multi-monitor; **Omarchy's idle timeouts** (screensaver / lock, preset dropdown or exact seconds — written to `shell.json` through `omarchy-shell-config`); idle takeover (+ a 10 s test); maintenance (doctor, thumbnails, seed, stop) | A pick that turns out to be a duplicate or fails to import counts as a
 miss; a source is only set aside after a run of them (an offline source at
 once), and the status line says why a run stopped short of the requested count.
@@ -144,7 +144,9 @@ sees it: API responses and single files at 16 MiB (both on the wire and after
 gzip inflation), archives at 128 MiB (streamed straight to the cache, never
 held in memory) and archive members at 16 MiB. Cached responses are checked
 again before use (a regular file, not a symlink, within the cap) and cache
-files are written atomically.
+files are written atomically. Archives are opened with both of bsdtar's output
+streams capped under one deadline (the child is killed on overflow or timeout),
+and a zip's directory (entry count, size) is checked before it is parsed.
 
 **Random import** — the row above the grid imports *N* random pieces from the
 current source or from all of them (each source walks its own catalogue at

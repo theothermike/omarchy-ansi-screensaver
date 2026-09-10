@@ -88,10 +88,8 @@ def _import_path(path: Path, prog: Progress, kw: dict, results: dict, counter: l
             _import_path(p, prog, kw, results, counter)
         return
     if path.suffix.lower() == ".zip":
-        import zipfile
-
-        from .sources.archives import read_zip_member
-        with zipfile.ZipFile(path) as z:
+        from .sources.archives import open_zip, read_zip_member
+        with open_zip(path) as z:
             names = [n for n in z.namelist() if not n.endswith("/") and "__MACOSX" not in n]
             for n in names:
                 if Path(n).suffix.lower() in L.REJECT_EXTS:

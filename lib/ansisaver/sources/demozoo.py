@@ -3,9 +3,8 @@ from __future__ import annotations
 
 import posixpath
 import urllib.parse
-import zipfile
 
-from .archives import read_bounded_file, read_zip_member
+from .archives import open_zip, read_bounded_file, read_zip_member
 from .base import Capabilities, Credits, Entry, Fetched, Provider, SourceError, is_art_name
 
 API = "https://demozoo.org/api/v1"
@@ -94,7 +93,7 @@ class Demozoo(Provider):
                 continue
             name = urllib.parse.unquote(url.rsplit("/", 1)[-1])
             if name.lower().endswith(".zip"):
-                with zipfile.ZipFile(p) as z:
+                with open_zip(p) as z:
                     members = [m for m in z.namelist() if is_art_name(posixpath.basename(m)) and "__MACOSX" not in m]
                     members.sort(key=lambda m: (0 if m.lower().endswith((".ans", ".ansi")) else 1, -z.getinfo(m).file_size))
                     if not members:
