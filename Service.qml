@@ -390,6 +390,12 @@ Item {
 
     function open(): string { return root.openGallery("{}") }
     function openTab(tab: string): string { return root.openGallery(JSON.stringify({ tab: tab })) }
+    // `qs ipc call` splits arguments on commas, so the path is "|"-joined:
+    //   omarchy-shell ansisaver browse sixteencolors 'years|year/1996|pack/ice9607a'
+    function browse(source: string, path: string): string {
+      var segs = String(path || "").split("|").filter(function(s) { return s !== "" })
+      return root.openGallery(JSON.stringify({ tab: "sources", source: source, path: segs }))
+    }
     function launch(): string { return root.launch(true) }
     function stop(): string { root.runCli(["stop"], { reloadAfter: false }); return "ok" }
     function preview(id: string): string {

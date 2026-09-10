@@ -4,9 +4,9 @@ from __future__ import annotations
 import io
 import posixpath
 import urllib.parse
-import zipfile
 
 from .base import Capabilities, Credits, Entry, Fetched, Provider, SourceError, is_art_name
+from .archives import art_members, is_archive_name, read_member
 
 PRESETS = [("ansi art", "ANSI art"), ("ascii art collection", "ASCII art collections"), ("artpack ansi", "Artpacks"),
            ("blocktronics", "Blocktronics"), ("mistigris", "Mistigris"), ("acid productions ansi", "ACiD Productions")]
@@ -62,19 +62,15 @@ class ArchiveOrg(Provider):
                 if is_art_name(posixpath.basename(name)):
                     entries.append(Entry("item", f"file/{ident}/{name}", posixpath.basename(name), f"{int(f.get('size') or 0) // 1024} KB",
                                          meta={"size": f.get("size")}, source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(name)}"))
-                elif low.endswith(".zip"):
+                elif is_archive_name(low):
                     entries.append(Entry("collection", f"zip/{ident}/{name}", posixpath.basename(name), f"zip · {int(f.get('size') or 0) // 1024} KB",
                                          can_add_all=True, source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(name)}"))
             return self.listing(path, entries, [title], notice=None if entries else "no text-art files in this item")
         if seg.startswith("zip/"):
             ident, _, name = seg[4:].partition("/")
             zpath = self.http.download(f"https://archive.org/download/{ident}/{urllib.parse.quote(name)}", filename=posixpath.basename(name))
-            entries = []
-            with zipfile.ZipFile(zpath) as z:
-                for m in z.namelist():
-                    if is_art_name(posixpath.basename(m)) and "__MACOSX" not in m:
-                        entries.append(Entry("item", f"zipfile/{ident}/{name}!/{m}", posixpath.basename(m), f"{z.getinfo(m).file_size // 1024} KB"))
-            return self.listing(path, entries, [posixpath.basename(name)])
+            entries = [Entry("item", f"zipfile/{ident}/{name}!/{m}", posixpath.basename(m), f"{size // 1024} KB") for m, size in art_members(zpath)]
+            return self.listing(path, entries, [posixpath.basename(name)], notice=None if entries else "no text-art files in this archive")
         raise SourceError(f"unknown path {seg}")
 
     def fetch(self, entry_id: str) -> Fetched:
@@ -88,8 +84,7 @@ class ArchiveOrg(Provider):
             ident, _, rest = rest.partition("/")
             zname, _, member = rest.partition("!/")
             zpath = self.http.download(f"https://archive.org/download/{ident}/{urllib.parse.quote(zname)}", filename=posixpath.basename(zname))
-            with zipfile.ZipFile(zpath) as z:
-                data = z.read(member)
+            data = read_member(zpath, member)
             return Fetched(data=data, filename=posixpath.basename(member), credits=Credits(), pack=posixpath.basename(zname).rsplit(".", 1)[0],
                            source_url=f"https://archive.org/download/{ident}/{urllib.parse.quote(zname)}", license_note=self.license_note)
         raise SourceError(f"not a file: {entry_id}")

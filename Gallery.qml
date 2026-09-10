@@ -47,6 +47,7 @@ Item {
     if (payload.tab && ["gallery", "sources", "effects", "settings"].indexOf(payload.tab) !== -1) root.tab = payload.tab
     root.opened = true
     root.statusText = ""
+    root.pendingNavigate = payload.source ? { source: payload.source, path: payload.path || [] } : null
     if (root.service) root.service.reload()
     Qt.callLater(function() { keyCatcher.forceActiveFocus(); root.focusTab() })
   }
@@ -72,6 +73,8 @@ Item {
   }
 
   // --- confirm dialog (shared) -------------------------------------------
+  // deep link into the Sources tab (IPC `browse <source> <pathJson>`)
+  property var pendingNavigate: null
   property var confirmAction: null
   function confirm(message, action) {
     root.confirmAction = action

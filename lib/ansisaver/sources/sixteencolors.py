@@ -1,10 +1,8 @@
 """16colo.rs — the ANSI/ASCII art archive (JSON API at api.16colo.rs/v1)."""
 from __future__ import annotations
 
-import io
 import posixpath
 import urllib.parse
-import zipfile
 from typing import Iterator
 
 from .base import Capabilities, Credits, Entry, Fetched, Provider, SourceError, is_art_name
@@ -17,6 +15,12 @@ MIRROR = "https://raw.githubusercontent.com/sixteencolors/sixteencolors-archive/
 
 def _s(v) -> str:
     return "" if v is None else str(v)
+
+
+def _q(seg: str) -> str:
+    """Quote a pack/file name for 16colo.rs: the API rejects percent-encoded
+    sub-delimiters (1oo!-ger -> 1oo%21-ger is a 400), so leave them alone."""
+    return urllib.parse.quote(seg, safe="!$&'()*+,;=:@")
 
 
 def _abs(u: str | None) -> str | None:
@@ -115,7 +119,7 @@ class SixteenColors(Provider):
             return self.listing(path, entries, self._crumbs(path), next_page=nxt)
         if seg.startswith("group/"):
             g = seg[6:]
-            j = self.http.get_json(f"{API}/group/{urllib.parse.quote(g)}?packs=true", ttl=86400)
+            j = self.http.get_json(f"{API}/group/{_q(g)}?packs=true", ttl=86400)
             packs = ((j.get("results") or {}).get("packs")) or {}
             entries = []
             for year in sorted(packs, reverse=True):
@@ -139,7 +143,7 @@ class SixteenColors(Provider):
             return self.listing(path, entries, self._crumbs(path), next_page=nxt)
         if seg.startswith("artist/"):
             a = seg[7:]
-            j = self.http.get_json(f"{API}/artist/{urllib.parse.quote(a)}?view=artwork", ttl=86400)
+            j = self.http.get_json(f"{API}/artist/{_q(a)}?view=artwork", ttl=86400)
             return self.listing(path, self._artist_items(j), self._crumbs(path))
         if seg == "latest":
             j = self.http.get_json(f"{API}/latest/releases", ttl=3600)
@@ -172,11 +176,11 @@ class SixteenColors(Provider):
             entries.append(Entry("item", f"file/{pack}/{name}", name, pack, meta={"year": f.get("year")},
                                  thumb_url=_abs(f.get("tn") or f"/pack/{pack}/tn/{name}.png"),
                                  image_url=_abs(f.get("x1") or f"/pack/{pack}/x1/{name}.png"),
-                                 source_url=f"{BASE}/pack/{pack}/{urllib.parse.quote(name)}"))
+                                 source_url=f"{BASE}/pack/{_q(pack)}/{_q(name)}"))
         return entries
 
     def _pack_info(self, pack: str) -> dict:
-        j = self.http.get_json(f"{API}/pack/{urllib.parse.quote(pack)}?sauce=true&content=true&dimensions=true&artists=true", ttl=7 * 86400)
+        j = self.http.get_json(f"{API}/pack/{_q(pack)}?sauce=true&content=true&dimensions=true&artists=true", ttl=7 * 86400)
         results = j.get("results") or []
         if not results:
             raise SourceError(f"pack {pack} not found on 16colo.rs")
@@ -214,7 +218,7 @@ class SixteenColors(Provider):
                       "font": sauce.get("Tinfos") or "", "tags": f.get("content") or [], "file": name},
                 thumb_url=_abs(tn.get("uri")) if tn else _abs(f"/pack/{pack}/tn/{name}.png"),
                 image_url=_abs(x1.get("uri")) if x1 else _abs(f"/pack/{pack}/x1/{name}.png"),
-                source_url=f"{BASE}/pack/{pack}/{urllib.parse.quote(name)}"))
+                source_url=f"{BASE}/pack/{_q(pack)}/{_q(name)}"))
         entries.sort(key=lambda e: (e.meta.get("rows") or 0, e.label.lower()))
         return entries
 
@@ -223,7 +227,7 @@ class SixteenColors(Provider):
             yield from self._pack_items(entry_id[5:])
             return
         if entry_id.startswith("artist/"):
-            j = self.http.get_json(f"{API}/artist/{urllib.parse.quote(entry_id[7:])}?view=artwork", ttl=86400)
+            j = self.http.get_json(f"{API}/artist/{_q(entry_id[7:])}?view=artwork", ttl=86400)
             yield from self._artist_items(j)
             return
         yield from super().iter_items(entry_id)
@@ -231,27 +235,39 @@ class SixteenColors(Provider):
     # ---------------------------------------------------------------- fetching
     def _pack_zip(self, pack: str, info: dict):
         url = _abs(info.get("download")) or f"{BASE}/archive/{info.get('year')}/{pack}.zip"
+        fname = posixpath.basename(urllib.parse.urlsplit(url).path) or f"{pack}.zip"
         try:
-            return self.http.download(url, filename=f"{pack}.zip")
+            return self.http.download(url, filename=fname)
         except Exception as first:  # noqa: BLE001
             if info.get("year"):
-                return self.http.download(f"{MIRROR}/{info['year']}/{pack}.zip", filename=f"{pack}.zip")
+                return self.http.download(f"{MIRROR}/{info['year']}/{fname}", filename=fname)
             raise first
+
+    def _raw_file(self, pack: str, name: str) -> bytes | None:
+        """16colo.rs serves every pack member raw at /pack/<pack>/raw/<file>;
+        that skips downloading (and unpacking) the whole archive."""
+        try:
+            data = self.http.get_bytes(f"{BASE}/pack/{_q(pack)}/raw/{_q(name)}", ttl=30 * 86400)
+        except Exception:  # noqa: BLE001
+            return None
+        # a miss comes back as an HTML page
+        if not data or data.lstrip()[:15].lower().startswith((b"<!doctype", b"<html")):
+            return None
+        return data
 
     def fetch(self, entry_id: str) -> Fetched:
         if not entry_id.startswith("file/"):
             raise SourceError(f"not a file entry: {entry_id}")
         pack, _, name = entry_id[5:].partition("/")
         info = self._pack_info(pack)
-        zpath = self._pack_zip(pack, info)
-        data = None
-        with zipfile.ZipFile(zpath) as z:
-            for member in z.namelist():
-                if posixpath.basename(member).lower() == name.lower() and "__MACOSX" not in member:
-                    data = z.read(member)
-                    break
+        data = self._raw_file(pack, name)
         if data is None:
-            raise SourceError(f"{name} not found inside {pack}.zip")
+            from .archives import find_member, read_member
+            apath = self._pack_zip(pack, info)
+            member = find_member(apath, name)
+            if member is None:
+                raise SourceError(f"{name} not found inside {apath.name}")
+            data = read_member(apath, member)
         f = (info.get("files") or {}).get(name) or {}
         sauce = f.get("sauce") or {}
         d = str(sauce.get("Date") or "")
@@ -261,7 +277,7 @@ class SixteenColors(Provider):
         return Fetched(data=data, filename=name,
                        credits=Credits(title=_s(sauce.get("Title")), author=_s(sauce.get("Author")) or ", ".join(_s(a) for a in (f.get("artists") or [])),
                                        group=_s(sauce.get("Group")), year=year, date=d, tags=[_s(t) for t in (f.get("content") or [])]),
-                       source_url=f"{BASE}/pack/{pack}/{urllib.parse.quote(name)}", license_note=self.license_note,
+                       source_url=f"{BASE}/pack/{_q(pack)}/{_q(name)}", license_note=self.license_note,
                        image_url=_abs(x1.get("uri")) if x1 else _abs(f"/pack/{pack}/x1/{name}.png"), encoding_hint=hint, pack=pack)
 
     def ping(self):

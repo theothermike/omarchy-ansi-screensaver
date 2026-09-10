@@ -35,13 +35,66 @@ Item {
   // it the scroll position) is never replaced just to mark one card.
   property var addingIds: ({})
   property var localPngs: ({})
+  property var thumbFailed: ({})
+  property var previewQueue: []
+  property bool previewing: false
+  property int previewTotal: 0
+  function needsPreview(e) {
+    return e.type === "item" && !e.text_preview && !tab.localPngs[tab.sourceId + "|" + e.id]
+      && (!e.thumb_url || !!tab.thumbFailed[e.id])
+  }
+  readonly property int previewable: { var n = 0; for (var i = 0; i < tab.entries.length; i++) if (tab.needsPreview(tab.entries[i])) n++; return n }
+  function markThumbFailed(id) { var m = Object.assign({}, tab.thumbFailed); m[id] = true; tab.thumbFailed = m }
+  // "Preview all": render every item on this page that has no picture, one
+  // at a time (each is a download from the remote endpoint).
+  function previewAll() {
+    var q = []
+    for (var i = 0; i < tab.entries.length; i++) if (tab.needsPreview(tab.entries[i])) q.push(tab.entries[i])
+    if (q.length === 0) { tab.status("nothing to preview"); return }
+    tab.previewQueue = q
+    tab.previewTotal = q.length
+    tab.previewing = true
+    tab.nextPreview()
+  }
+  function stopPreviewAll() { tab.previewQueue = []; tab.previewing = false; tab.status("preview all stopped") }
+  function nextPreview() {
+    if (!tab.previewing) return
+    if (tab.previewQueue.length === 0) { tab.previewing = false; tab.status("previews done"); return }
+    var q = tab.previewQueue.slice(); var entry = q.shift(); tab.previewQueue = q
+    tab.status("previewing " + (tab.previewTotal - q.length) + "/" + tab.previewTotal + " · " + entry.label)
+    tab.renderPreview(entry, tab.nextPreview, tab.nextPreview)
+  }
+  function renderPreview(entry, onOk, onFail) {
+    var key = tab.sourceId + "|" + entry.id
+    if (tab.previewCache[key]) { if (onOk) onOk(); return }
+    var mySource = tab.sourceId
+    tab.service.runCli(["preview", "--source", mySource, "--entry", entry.id, "--json"], { reloadAfter: false, onDone: function(rc, out) {
+      try {
+        var res = JSON.parse(out)
+        if (res.error) { if (onFail) onFail(); return }
+        var c = tab.previewCache; c[key] = res; tab.previewCache = c
+        if (res.png) { var m = Object.assign({}, tab.localPngs); m[key] = res.png; tab.localPngs = m }
+        if (onOk) onOk()
+      } catch (err) { if (onFail) onFail() }
+    } })
+  }
   readonly property var source: {
     for (var i = 0; i < tab.sources.length; i++) if (tab.sources[i].id === tab.sourceId) return tab.sources[i]
     return null
   }
   readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < entries.length) ? entries[grid.currentIndex] : null
 
-  function onShown() { if (tab.sourceId === "" && tab.sources.length > 0) tab.selectSource(tab.sources[0].id) }
+  function onShown() {
+    var nav = tab.overlay ? tab.overlay.pendingNavigate : null
+    if (nav) { tab.overlay.pendingNavigate = null; tab.navigateTo(nav.source, nav.path || []); return }
+    if (tab.sourceId === "" && tab.sources.length > 0) tab.selectSource(tab.sources[0].id)
+  }
+  function navigateTo(sourceId, path) {
+    tab.sourceId = sourceId
+    tab.search = ""
+    searchField.text = ""
+    tab.browse(path || [], "", 1, false)
+  }
   function onEscape() {
     if (tab.search !== "") { searchField.text = ""; return true }
     if (tab.pathSegs.length > 0) { tab.up(); return true }
@@ -134,16 +187,9 @@ Item {
     var key = tab.sourceId + "|" + entry.id
     if (tab.previewCache[key]) { tab.previewItem = Object.assign({}, entry, tab.previewCache[key]); return }
     tab.status("rendering preview…")
-    tab.service.runCli(["preview", "--source", tab.sourceId, "--entry", entry.id, "--json"], { reloadAfter: false, onDone: function(rc, out) {
-      try {
-        var res = JSON.parse(out)
-        if (res.error) { tab.status(res.error); return }
-        var c = tab.previewCache; c[key] = res; tab.previewCache = c
-        tab.previewItem = Object.assign({}, entry, res)
-        if (res.png) { var m = Object.assign({}, tab.localPngs); m[key] = res.png; tab.localPngs = m }
-        tab.status("")
-      } catch (err) { tab.status("preview failed") }
-    } })
+    tab.renderPreview(entry,
+      function() { tab.previewItem = Object.assign({}, entry, tab.previewCache[key]); tab.status("") },
+      function() { tab.status("preview failed for " + entry.label) })
   }
   property var previewItem: null
   function move(delta) {
@@ -163,6 +209,7 @@ Item {
     else if (k === Qt.Key_A) { tab.add(tab.current); event.accepted = true }
     else if (k === Qt.Key_Slash) { tab.focusSearch(); event.accepted = true }
     else if (k === Qt.Key_N) { tab.loadMore(); event.accepted = true }
+    else if (k === Qt.Key_P) { tab.previewing ? tab.stopPreviewAll() : tab.previewAll(); event.accepted = true }
   }
 
   Row {
@@ -250,6 +297,14 @@ Item {
           Keys.onEscapePressed: function(event) { if (text !== "") { text = ""; tab.search = ""; tab.browse([], "", 1, false) } else if (tab.overlay) tab.overlay.dismiss(); event.accepted = true }
         }
         Text { anchors.verticalCenter: parent.verticalCenter; text: tab.busy ? "loading…" : (tab.entries.length + " entries"); color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+        Button {
+          anchors.verticalCenter: parent.verticalCenter
+          visible: tab.previewing || tab.previewable > 0
+          text: tab.previewing ? ("Stop (" + tab.previewQueue.length + " left)") : ("Preview all (" + tab.previewable + ")")
+          tooltipText: "render a picture for every item on this page that has none — one download per item"
+          bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
+          onClicked: tab.previewing ? tab.stopPreviewAll() : tab.previewAll()
+        }
       }
 
       Row {
@@ -312,6 +367,7 @@ Item {
     readonly property bool current: grid.currentIndex === index
     readonly property string inLibrary: entry.type === "item" ? tab.libraryIdFor(entry) : ""
     readonly property bool adding: !!tab.addingIds[entry.id]
+    readonly property bool thumbBroken: !!tab.thumbFailed[entry.id]
     readonly property string localPng: tab.localPngs[tab.sourceId + "|" + entry.id] || ""
     width: grid.cellWidth
     height: grid.cellHeight
@@ -344,14 +400,15 @@ Item {
           }
           Image {
             anchors.fill: parent; anchors.margins: Style.spacing.xxs
-            visible: cardRoot.entry.type === "item" && (cardRoot.localPng !== "" || !!cardRoot.entry.thumb_url)
-            source: cardRoot.localPng !== "" ? Model.fileUrl(cardRoot.localPng) : (cardRoot.entry.thumb_url || "")
+            visible: cardRoot.entry.type === "item" && (cardRoot.localPng !== "" || (!!cardRoot.entry.thumb_url && !cardRoot.thumbBroken))
+            source: cardRoot.localPng !== "" ? Model.fileUrl(cardRoot.localPng) : ((cardRoot.entry.thumb_url && !cardRoot.thumbBroken) ? cardRoot.entry.thumb_url : "")
             asynchronous: true; cache: true; fillMode: Image.PreserveAspectFit; verticalAlignment: Image.AlignTop
             sourceSize.width: Math.round(width * Screen.devicePixelRatio); smooth: true
+            onStatusChanged: if (status === Image.Error && cardRoot.localPng === "") tab.markThumbFailed(cardRoot.entry.id)
           }
           Text {
             anchors.fill: parent; anchors.margins: Style.spacing.xs
-            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && !cardRoot.entry.thumb_url && !!cardRoot.entry.text_preview
+            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && (!cardRoot.entry.thumb_url || cardRoot.thumbBroken) && !!cardRoot.entry.text_preview
             text: cardRoot.entry.text_preview || ""
             textFormat: Text.PlainText
             color: tab.foreground
@@ -360,7 +417,7 @@ Item {
           }
           Button {
             anchors.centerIn: parent
-            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && !cardRoot.entry.thumb_url && !cardRoot.entry.text_preview
+            visible: cardRoot.entry.type === "item" && cardRoot.localPng === "" && (!cardRoot.entry.thumb_url || cardRoot.thumbBroken) && !cardRoot.entry.text_preview
             text: "Preview"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
             onClicked: tab.previewEntry(cardRoot.entry)
           }

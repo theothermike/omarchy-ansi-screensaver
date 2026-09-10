@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import posixpath
 import urllib.parse
-import zipfile
 
 from .base import Capabilities, Credits, Entry, Fetched, Provider, SourceError, is_art_name
+from .archives import art_members, is_archive_name, read_member
 
 API = "https://api.github.com"
 
@@ -42,7 +42,7 @@ class GitHubRepo(Provider):
             p = it.get("path", name)
             if it.get("type") == "dir":
                 entries.append(Entry("collection", f"dir/{p}", name, "folder", can_add_all=True, source_url=it.get("html_url")))
-            elif name.lower().endswith(".zip"):
+            elif is_archive_name(name):
                 thumb = None
                 if self.mirror_thumbs:
                     pack = name[:-4]
@@ -61,17 +61,15 @@ class GitHubRepo(Provider):
 
     def _zip_listing(self, p: str, path):
         zpath = self._zip_path(p)
-        pack = posixpath.basename(p)[:-4]
+        pack = posixpath.basename(p).rsplit(".", 1)[0]
         entries = []
-        with zipfile.ZipFile(zpath) as z:
-            for m in z.namelist():
-                base = posixpath.basename(m)
-                if is_art_name(base) and "__MACOSX" not in m and not base.lower().startswith("file_id"):
-                    thumb = f"https://16colo.rs/pack/{pack}/tn/{urllib.parse.quote(base)}.png" if self.mirror_thumbs else None
-                    entries.append(Entry("item", f"zipfile/{p}!/{m}", base, f"{z.getinfo(m).file_size // 1024} KB", thumb_url=thumb,
-                                         image_url=f"https://16colo.rs/pack/{pack}/x1/{urllib.parse.quote(base)}.png" if self.mirror_thumbs else None,
-                                         source_url=f"https://16colo.rs/pack/{pack}/{urllib.parse.quote(base)}" if self.mirror_thumbs else None))
-        return self.listing(path, entries, [c.split("/")[-1] for c in path])
+        for m, size in art_members(zpath):
+            base = posixpath.basename(m)
+            thumb = f"https://16colo.rs/pack/{pack}/tn/{urllib.parse.quote(base)}.png" if self.mirror_thumbs else None
+            entries.append(Entry("item", f"zipfile/{p}!/{m}", base, f"{size // 1024} KB", thumb_url=thumb,
+                                 image_url=f"https://16colo.rs/pack/{pack}/x1/{urllib.parse.quote(base)}.png" if self.mirror_thumbs else None,
+                                 source_url=f"https://16colo.rs/pack/{pack}/{urllib.parse.quote(base)}" if self.mirror_thumbs else None))
+        return self.listing(path, entries, [c.split("/")[-1] for c in path], notice=None if entries else "no text-art files in this archive")
 
     def iter_items(self, entry_id: str):
         if entry_id.startswith("zip/"):
@@ -96,9 +94,8 @@ class GitHubRepo(Provider):
         if entry_id.startswith("zipfile/"):
             p, _, member = entry_id[8:].partition("!/")
             zpath = self._zip_path(p)
-            with zipfile.ZipFile(zpath) as z:
-                data = z.read(member)
-            pack = posixpath.basename(p)[:-4]
+            data = read_member(zpath, member)
+            pack = posixpath.basename(p).rsplit(".", 1)[0]
             base = posixpath.basename(member)
             src = f"https://16colo.rs/pack/{pack}/{urllib.parse.quote(base)}" if self.mirror_thumbs else f"https://github.com/{self.repo}/blob/HEAD/{p}"
             return Fetched(data=data, filename=base, credits=Credits(), source_url=src, license_note=self.license_note, pack=pack,

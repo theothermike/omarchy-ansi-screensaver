@@ -5,10 +5,10 @@ import html
 import posixpath
 import re
 import urllib.parse
-import zipfile
 from html.parser import HTMLParser
 
 from .base import Capabilities, Credits, Entry, Fetched, Provider, SourceError, is_art_name
+from .archives import art_members, is_archive_name, read_member
 
 SKIP_EXT = (".png", ".jpg", ".jpeg", ".gif", ".html", ".htm", ".css", ".js", ".mp3", ".xb", ".exe", ".com", ".zip.txt")
 
@@ -89,7 +89,7 @@ class HttpIndex(Provider):
                 d = rel2 if rel2.endswith("/") else rel2 + "/"
                 if d.rstrip("/").startswith(rel.rstrip("/")) and d != rel:
                     entries.append(Entry("collection", f"dir/{d}", name, "folder", can_add_all=True, source_url=urllib.parse.urljoin(self.base, d)))
-            elif low.endswith(".zip"):
+            elif is_archive_name(low):
                 entries.append(Entry("collection", f"zip/{rel2}", name, "zip", can_add_all=True, source_url=urllib.parse.urljoin(self.base, rel2)))
             elif is_art_name(name) and not low.endswith(SKIP_EXT):
                 # textfiles.com keeps PNG renders next to the art under .png/<name>.png
@@ -103,13 +103,8 @@ class HttpIndex(Provider):
 
     def _zip_listing(self, rel: str, path):
         zpath = self.http.download(urllib.parse.urljoin(self.base, rel), filename=posixpath.basename(rel))
-        entries = []
-        with zipfile.ZipFile(zpath) as z:
-            for m in z.namelist():
-                base = posixpath.basename(m)
-                if is_art_name(base) and "__MACOSX" not in m:
-                    entries.append(Entry("item", f"zipfile/{rel}!/{m}", base, f"{z.getinfo(m).file_size // 1024} KB"))
-        return self.listing(path, entries, [c.rstrip("/").split("/")[-1] for c in path])
+        entries = [Entry("item", f"zipfile/{rel}!/{m}", posixpath.basename(m), f"{size // 1024} KB") for m, size in art_members(zpath)]
+        return self.listing(path, entries, [c.rstrip("/").split("/")[-1] for c in path], notice=None if entries else "no text-art files in this archive")
 
     def iter_items(self, entry_id: str):
         if entry_id.startswith("zip/"):
@@ -132,8 +127,7 @@ class HttpIndex(Provider):
         if entry_id.startswith("zipfile/"):
             rel, _, member = entry_id[8:].partition("!/")
             zpath = self.http.download(urllib.parse.urljoin(self.base, rel), filename=posixpath.basename(rel))
-            with zipfile.ZipFile(zpath) as z:
-                data = z.read(member)
+            data = read_member(zpath, member)
             return Fetched(data=data, filename=posixpath.basename(member), credits=Credits(), source_url=urllib.parse.urljoin(self.base, rel),
                            license_note=self.license_note, pack=posixpath.basename(rel)[:-4])
         raise SourceError(f"not a file: {entry_id}")
