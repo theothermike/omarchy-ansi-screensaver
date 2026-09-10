@@ -139,8 +139,8 @@ class Slideshow:
         self.out_weights = C.transition_weights(cfg)
         fast = bool(args.fast)
         self.hold = 2.0 if fast else float(cfg.get("hold_seconds", 20))
-        self.hold_top = 1.0 if fast else float(cfg.get("hold_top_seconds", 4))
-        self.scroll_rate = 10.0 if fast else float(cfg.get("scroll_rows_per_second", 2))
+        self.hold_top = 0.0 if fast else float(cfg.get("hold_top_seconds", 0))
+        self.scroll_rate = 15.0 if fast else float(cfg.get("scroll_rows_per_second", 15))
         self.slide_max = float(cfg.get("slide_max_seconds", 120))
         self.fps = int(C.get(cfg, "transitions.fps", 30))
         self.slide_file = paths.RUNTIME_DIR / f"slide-{os.getpid()}.ans"
@@ -232,7 +232,7 @@ class Slideshow:
         started = time.monotonic()
         max_s = float(C.get(self.cfg, "ttfx.max_seconds", 30))
         while proc.poll() is None:
-            term.poll(0.2)
+            term.poll(0.03)
             if time.monotonic() - started > max_s:
                 log.info("effect %s exceeded %.0fs; painting final frame", effect, max_s)
                 term.kill_child()
@@ -317,7 +317,8 @@ class Slideshow:
             effect = self.args.effect if self.args.effect in effects.TABLE else effects.pick(self.effect_weights, self.rng)
             self.reveal_ttfx(frame, effect)
         if tall and top == 0:
-            term.poll(self.hold_top)
+            if self.hold_top > 0:
+                term.poll(self.hold_top)
             top = self.scroll_rest(grid, top, rows, x_off, slide_started)
         frame = compose(grid, cols, rows, x_off, y_off, top)
         self.painter.prime(frame)

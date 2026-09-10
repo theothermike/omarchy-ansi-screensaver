@@ -29,8 +29,8 @@ DEFAULTS: dict[str, Any] = {
     "order": "shuffle",            # shuffle | ordered | favorites
     "multi_monitor": "independent",  # independent | mirrored
     "hold_seconds": 20,
-    "hold_top_seconds": 1,
-    "scroll_rows_per_second": 10,
+    "hold_top_seconds": 0,
+    "scroll_rows_per_second": 15,
     "slide_max_seconds": 120,
     "caption": True,
     "caption_position": "br",      # br | tr | bl | tl
