@@ -29,8 +29,8 @@ DEFAULTS: dict[str, Any] = {
     "order": "shuffle",            # shuffle | ordered | favorites
     "multi_monitor": "independent",  # independent | mirrored
     "hold_seconds": 20,
-    "hold_top_seconds": 4,
-    "scroll_rows_per_second": 2,
+    "hold_top_seconds": 1,
+    "scroll_rows_per_second": 10,
     "slide_max_seconds": 120,
     "caption": True,
     "caption_position": "br",      # br | tr | bl | tl
@@ -99,11 +99,30 @@ def load() -> dict:
     return _merge(DEFAULTS, user)
 
 
+def _diff(defaults: dict, cfg: dict) -> dict:
+    """Only the keys that differ from the defaults (so default changes in
+    later versions reach users who never touched those settings)."""
+    out = {}
+    for k, v in cfg.items():
+        d = defaults.get(k, _MISSING)
+        if isinstance(v, dict) and isinstance(d, dict) and k != "sources":
+            sub = _diff(d, v)
+            if sub:
+                out[k] = sub
+        elif d is _MISSING or v != d:
+            out[k] = copy.deepcopy(v)
+    return out
+
+
+_MISSING = object()
+
+
 def save(cfg: dict) -> None:
     paths.ensure_dirs()
     tmp = paths.CONFIG_FILE.with_suffix(".json.tmp")
+    slim = {"version": cfg.get("version", 1), **_diff(DEFAULTS, cfg)}
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2, sort_keys=False)
+        json.dump(slim, f, indent=2, sort_keys=False)
         f.write("\n")
     os.replace(tmp, paths.CONFIG_FILE)
     touch_revision()

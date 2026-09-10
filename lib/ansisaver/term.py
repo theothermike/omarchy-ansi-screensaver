@@ -230,3 +230,22 @@ class Painter:
         t.flush()
         if self.cache:
             self.cache = self.cache[1:] + [s]
+
+    def scroll_blank(self) -> None:
+        """Scroll one line; the new bottom line is left empty."""
+        self.term.write("\x1b[S")
+        self.term.flush()
+        if self.cache:
+            self.cache = self.cache[1:] + [""]
+
+    def draw_segment(self, row, pad: int, a: int, b: int) -> None:
+        """Paint cells [a, b) of `row` on the bottom line (progressive reveal)."""
+        if b <= a:
+            return
+        t = self.term
+        t.write(f"\x1b[{t.rows};{pad + a + 1}H{row_to_sgr(row[a:b], upto=b - a)}")
+        t.flush()
+
+    def commit_bottom(self, row, pad: int = 0) -> None:
+        if self.cache:
+            self.cache[-1] = row_to_sgr(row, upto=len(row), pad=pad)

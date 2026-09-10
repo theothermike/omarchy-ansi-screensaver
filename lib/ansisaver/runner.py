@@ -245,6 +245,39 @@ class Slideshow:
         from .baud import play
         return play(self, meta, grid, x_off, y_off)
 
+    def scroll_rest(self, grid: Grid, top: int, rows: int, x_off: int, slide_started: float) -> int:
+        """Reveal the rows below the first screenful the way a BBS would have:
+        the screen scrolls one line at a time and each new line is drawn left
+        to right, at `scroll_rows_per_second` (raised if the slide would
+        overrun `slide_max_seconds`)."""
+        term = self.term
+        prows = grid.height
+        remaining = prows - rows
+        rate = max(self.scroll_rate, 0.1)
+        budget = self.slide_max - (time.monotonic() - slide_started) - self.hold
+        if budget > 0 and remaining / rate > budget:
+            rate = remaining / budget
+        row_time = 1.0 / rate
+        segs = 4 if row_time >= 0.04 else 1
+        log.info("scroll %d rows at %.1f rows/s", remaining, rate)
+        next_due = time.monotonic()
+        while top + rows < prows:
+            row = grid.rows[top + rows]
+            width = len(row)
+            self.painter.scroll_blank()
+            if width == 0:
+                next_due += row_time
+                term.poll(max(0.0, next_due - time.monotonic()))
+            else:
+                step = max(1, -(-width // segs))
+                for a in range(0, width, step):
+                    self.painter.draw_segment(row, x_off, a, min(width, a + step))
+                    next_due += row_time / segs
+                    term.poll(max(0.0, next_due - time.monotonic()))
+            self.painter.commit_bottom(row, pad=x_off)
+            top += 1
+        return top
+
     # -- one slide -----------------------------------------------------------
     def slide(self) -> bool:
         term = self.term
@@ -285,15 +318,7 @@ class Slideshow:
             self.reveal_ttfx(frame, effect)
         if tall and top == 0:
             term.poll(self.hold_top)
-            remaining = prows - rows
-            rate = self.scroll_rate
-            budget = self.slide_max - (time.monotonic() - slide_started) - self.hold
-            if budget > 0 and remaining / max(rate, 0.1) > budget:
-                rate = remaining / budget
-            while top + rows < prows:
-                self.painter.scroll_up(grid.rows[top + rows], pad=x_off)
-                top += 1
-                term.poll(1.0 / max(rate, 0.1))
+            top = self.scroll_rest(grid, top, rows, x_off, slide_started)
         frame = compose(grid, cols, rows, x_off, y_off, top)
         self.painter.prime(frame)
         self.draw_caption(meta, frame)
