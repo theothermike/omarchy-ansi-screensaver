@@ -281,6 +281,7 @@ def cmd_random(args) -> int:
             stalled[src.id] = stalled.get(src.id, 0) + 1
             continue
         history.add(key)
+        _save_history(history)          # survive an interrupted job
         if created:
             done += 1
             stalled[src.id] = 0
