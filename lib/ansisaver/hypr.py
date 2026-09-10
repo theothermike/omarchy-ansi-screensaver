@@ -170,3 +170,45 @@ def class_pids(window_class: str, exclude_self: bool = True) -> list[int]:
         if any(n in cmd for n in needles):
             out.append(pid)
     return out
+
+
+def cmdline(pid: int) -> bytes:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            return f.read()
+    except OSError:
+        return b""
+
+
+def ppid(pid: int) -> int:
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            return int(f.read().rsplit(")", 1)[1].split()[1])
+    except (OSError, IndexError, ValueError):
+        return 0
+
+
+TERMINALS = (b"ghostty", b"alacritty", b"kitty", b"foot")
+
+
+def stock_screensaver_pids() -> tuple[list[int], list[int]]:
+    """Omarchy's stock screensaver processes, ours excluded:
+    (scripts = `omarchy-screensaver` loops, rest = their terminal windows and
+    ttfx children). The scripts trap SIGTERM/SIGHUP and then `pkill` the whole
+    window class, so callers must SIGKILL them first."""
+    scripts, rest = [], []
+    me = {os.getpid(), os.getppid()}
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        pid = int(entry)
+        if pid in me:
+            continue
+        cmd = cmdline(pid)
+        if b"omarchy-screensaver" in cmd and b"ansi-screensaver" not in cmd:
+            (rest if any(t in cmd for t in TERMINALS) else scripts).append(pid)
+    if scripts:
+        for entry in os.listdir("/proc"):
+            if entry.isdigit() and ppid(int(entry)) in scripts and b"ttfx" in cmdline(int(entry)):
+                rest.append(int(entry))
+    return sorted(set(scripts)), sorted(set(rest))

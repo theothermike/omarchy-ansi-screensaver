@@ -100,9 +100,25 @@ def launch(args, window_class: str | None = None) -> int:
         notify("ANSI screensaver needs ghostty")
         return 1
     running = hypr.class_pids(window_class)
-    if running:
-        log.info("already running: %s", running)
+    ours = [pid for pid in running if b"ansi-screensaver" in hypr.cmdline(pid)]
+    if ours:
+        log.info("already running: %s", ours)
         return 0
+    # Omarchy's own screensaver got there first (its idle timer won a race,
+    # e.g. after our monitor was re-created mid-idle): replace it. Ours is
+    # spawned first so the stock idle service never sees zero screensaver
+    # windows and its lock timer keeps running.
+    stock_scripts, stock_rest = hypr.stock_screensaver_pids() if window_class == paths.SCREENSAVER_CLASS else ([], [])
+    stock = stock_scripts or stock_rest
+    if stock:
+        log.info("stock screensaver running (scripts %s, windows %s); replacing it", stock_scripts, stock_rest)
+        # Its loop checks focus every second and its exit trap pkills the
+        # whole window class, so the script dies first, without a trap.
+        for pid in stock_scripts:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
     force = bool(getattr(args, "force", False))
     if not force and paths.SCREENSAVER_OFF_FLAG.exists():
         log.info("screensaver-off toggle set; not launching")
@@ -152,6 +168,17 @@ def launch(args, window_class: str | None = None) -> int:
         if focused:
             hypr.focus_monitor(focused)
         events.close()
+    if stock:
+        # ours has mapped, so the stock idle service never sees zero
+        # screensaver windows; now drop the orphaned stock window and ttfx
+        time.sleep(0.3)
+        scripts, rest = hypr.stock_screensaver_pids()
+        for pid in scripts + rest:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError:
+                pass
+        log.info("stock screensaver replaced")
     return 0
 
 
