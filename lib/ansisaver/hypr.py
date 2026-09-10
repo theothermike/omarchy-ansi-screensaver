@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import shlex
 import socket
 import subprocess
@@ -189,26 +190,65 @@ def ppid(pid: int) -> int:
 
 
 TERMINALS = (b"ghostty", b"alacritty", b"kitty", b"foot")
+STOCK_LOOP = b"omarchy-screensaver"
+STOCK_LAUNCHER = b"omarchy-launch-screensaver"
 
 
-def stock_screensaver_pids() -> tuple[list[int], list[int]]:
-    """Omarchy's stock screensaver processes, ours excluded:
-    (scripts = `omarchy-screensaver` loops, rest = their terminal windows and
-    ttfx children). The scripts trap SIGTERM/SIGHUP and then `pkill` the whole
-    window class, so callers must SIGKILL them first."""
-    scripts, rest = [], []
-    me = {os.getpid(), os.getppid()}
+class StockProcs:
+    """Omarchy's stock screensaver processes, ours excluded: `launchers` are
+    `omarchy-launch-screensaver` runs (one window per monitor, in sequence),
+    `loops` the `omarchy-screensaver` scripts (their exit trap `pkill`s the
+    whole window class -- ours included -- so they must never get to run it),
+    `windows` their terminals and `children` whatever the scripts spawned
+    (ttfx, socat, sleep)."""
+
+    def __init__(self, launchers, loops, windows, children):
+        self.launchers, self.loops, self.windows, self.children = launchers, loops, windows, children
+
+    def __bool__(self) -> bool:
+        return bool(self.launchers or self.loops or self.windows or self.children)
+
+    def __str__(self) -> str:
+        return f"launchers {self.launchers} loops {self.loops} windows {self.windows} children {self.children}"
+
+    def freeze(self) -> None:
+        """Stop the scripts -- a stopped shell runs no trap and spawns no more
+        windows -- and kill what they already spawned. Their windows stay up,
+        so the stock idle service does not read this as a dismissal."""
+        _signal(self.launchers + self.loops, signal.SIGSTOP)
+        _signal(self.children, signal.SIGKILL)
+
+    def kill(self) -> None:
+        _signal(self.launchers + self.loops + self.children + self.windows, signal.SIGKILL)
+
+
+def _signal(pids: list[int], sig: int) -> None:
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            pass
+
+
+def stock_screensaver_procs() -> StockProcs:
+    skip = _ancestors()
+    launchers, loops, windows, cmds = [], [], [], {}
     for entry in os.listdir("/proc"):
         if not entry.isdigit():
             continue
         pid = int(entry)
-        if pid in me:
+        if pid in skip:
             continue
         cmd = cmdline(pid)
-        if b"omarchy-screensaver" in cmd and b"ansi-screensaver" not in cmd:
-            (rest if any(t in cmd for t in TERMINALS) else scripts).append(pid)
-    if scripts:
-        for entry in os.listdir("/proc"):
-            if entry.isdigit() and ppid(int(entry)) in scripts and b"ttfx" in cmdline(int(entry)):
-                rest.append(int(entry))
-    return sorted(set(scripts)), sorted(set(rest))
+        if not cmd:
+            continue
+        cmds[pid] = cmd
+        argv = cmd.split(b"\0")
+        # the launcher script itself, not the `bash -lc` wrapper naming it
+        if any(a == STOCK_LAUNCHER or a.endswith(b"/" + STOCK_LAUNCHER) for a in argv):
+            launchers.append(pid)
+        elif STOCK_LOOP in cmd and b"ansi-screensaver" not in cmd:
+            (windows if any(t in cmd for t in TERMINALS) else loops).append(pid)
+    parents = set(launchers) | set(loops)
+    children = [pid for pid in cmds if pid not in parents and ppid(pid) in parents]
+    return StockProcs(sorted(launchers), sorted(loops), sorted(windows), sorted(children))

@@ -1,13 +1,19 @@
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 import Quickshell.Wayland
 
 // Headless owner of the plugin state:
 //  * the snapshot (library, config, doctor, sources) read from the CLI;
-//  * idle takeover: our own IdleMonitor fires a little before Omarchy's, so
-//    the stock launcher sees our window class and becomes a no-op while the
-//    stock idle service keeps owning lock / wake / stay-awake;
+//  * idle takeover: Omarchy's own idle service keeps its job (it launches the
+//    stock screensaver, locks, wakes, honours stay-awake); the Hyprland window
+//    watcher below sees the stock screensaver window map and has the launcher
+//    replace it with ours. Firing our own timer first would not do: launching
+//    a screensaver counts as compositor activity, so it would reset Omarchy's
+//    idle monitor and postpone the lock. Our IdleMonitor is only a fallback
+//    that fires a few seconds after Omarchy's, for when the stock launcher
+//    declined (an unsupported default terminal, say);
 //  * the `ansisaver` IPC target used by the bar widget, menu and keybinds.
 // Every mutation goes through the CLI; the CLI touches a `revision` file that
 // the directory watcher below picks up, so the UI never has to poll.
@@ -27,6 +33,9 @@ Item {
   readonly property string togglesDir: home + "/.local/state/omarchy/toggles"
   readonly property string indicatorsDir: home + "/.local/state/omarchy/indicators"
   readonly property string screensaverClass: "org.omarchy.screensaver"
+  // ghostty applies `title` from our config file before the window maps, so
+  // the openwindow event already tells our windows apart from the stock ones.
+  readonly property string ourTitle: "ANSI Screensaver"
 
   // ---- snapshot ----------------------------------------------------------
   property var snapshot: null
@@ -98,16 +107,16 @@ Item {
     var v = Number(root.shellIdle.lock)
     return isFinite(v) && v >= 0 ? Math.round(v) : 300
   }
-  readonly property int leadSeconds: {
-    var v = Number(root.config.idle ? root.config.idle.lead_seconds : 2)
-    return isFinite(v) && v >= 1 ? Math.round(v) : 2
+  readonly property int fallbackSeconds: {
+    var v = Number(root.config.idle ? root.config.idle.fallback_seconds : 5)
+    return isFinite(v) && v >= 1 ? Math.round(v) : 5
   }
   readonly property bool takeoverEnabled: !!(root.config.idle && root.config.idle.takeover)
   property bool screensaverOff: false
   property bool stayAwake: false
   property bool flagsLoaded: false
   property int testSeconds: 0
-  readonly property int timeoutSeconds: Math.max(5, root.screensaverSeconds - root.leadSeconds)
+  readonly property int timeoutSeconds: Math.max(5, root.screensaverSeconds + root.fallbackSeconds)
   readonly property bool armed: root.flagsLoaded && root.takeoverEnabled && !root.screensaverOff
                                 && !root.stayAwake && root.screensaverSeconds > 0
   property bool launchedThisCycle: false
@@ -115,7 +124,8 @@ Item {
   // Idle monitors are created on demand: a monitor whose `enabled` flips on
   // after creation never registers with the compositor (verified), so every
   // change of armed state / timeout tears the old one down and builds a new
-  // one with `enabled: true` from the start.
+  // one with `enabled: true` from the start. Launching is idempotent, so the
+  // fallback firing while ours already runs costs one no-op CLI call.
   property var monitor: null
   property bool monitorIsTest: false
   readonly property bool monitorActive: !!monitor
@@ -144,7 +154,7 @@ Item {
     if (isIdle) {
       if (root.launchedThisCycle) return
       root.launchedThisCycle = true
-      root.logEvent(isTest ? "idle test fired" : "idle -> launch")
+      root.logEvent(isTest ? "idle test fired" : "idle fallback -> launch")
       root.launch(isTest)
       if (isTest) root.testSeconds = 0
     } else {
@@ -152,11 +162,12 @@ Item {
     }
   }
 
+  property int launching: 0
   function launch(force) {
     var cmd = "[[ $(omarchy-shell lock isLocked 2>/dev/null) == \"true\" ]] || exec "
       + JSON.stringify(root.cli) + " launch --window-class " + root.screensaverClass + (force ? " --force" : "")
     var proc = shellRun.createObject(root, { args: ["bash", "-lc", cmd] })
-    if (proc) proc.running = true
+    if (proc) { root.launching += 1; proc.running = true }
     return "ok"
   }
 
@@ -173,10 +184,32 @@ Item {
         }
       }
       onExited: function(exitCode) {
+        root.launching = Math.max(0, root.launching - 1)
         if (exitCode !== 0) root.logEvent("launch exited " + exitCode)
         destroy()
       }
     }
+  }
+
+  // Stock screensaver got there first (its idle timer won, e.g. because this
+  // service was reloaded mid-idle and our monitor restarted from zero): the
+  // launcher replaces it -- ours is spawned before theirs is torn down, so the
+  // stock idle service keeps its lock timer. Launches are idempotent, so a
+  // misjudged event costs one no-op CLI call.
+  function handleHyprlandEvent(event) {
+    if (String(event && event.name ? event.name : "") !== "openwindow") return
+    var parts
+    try { parts = event.parse(4) } catch (e) { parts = String(event && event.data ? event.data : "").split(",") }
+    if (String(parts[2] || "") !== root.screensaverClass) return
+    if (String(parts[3] || "") === root.ourTitle) return
+    if (!root.armed || root.launching > 0) return
+    root.launchedThisCycle = true
+    root.logEvent("stock screensaver window " + parts[0] + " (" + parts[3] + ") -> replace")
+    root.launch(false)
+  }
+  Connections {
+    target: Hyprland
+    function onRawEvent(event) { root.handleHyprlandEvent(event) }
   }
 
   // shell.json (Omarchy idle timings) -- a non-clone plugin is not handed
@@ -371,9 +404,9 @@ Item {
     return JSON.stringify({
       armed: root.armed, takeoverEnabled: root.takeoverEnabled, screensaverOff: root.screensaverOff,
       stayAwake: root.stayAwake, flagsLoaded: root.flagsLoaded, screensaverSeconds: root.screensaverSeconds, lockSeconds: root.lockSeconds,
-      leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: root.monitor ? root.monitor.isIdle : false,
+      fallbackSeconds: root.fallbackSeconds, timeoutSeconds: root.timeoutSeconds, idle: root.monitor ? root.monitor.isIdle : false,
       monitorActive: root.monitorActive, monitorTimeout: root.monitor ? root.monitor.timeout : null, monitorIsTest: root.monitorIsTest,
-      launchedThisCycle: root.launchedThisCycle, testSeconds: root.testSeconds,
+      launchedThisCycle: root.launchedThisCycle, testSeconds: root.testSeconds, launching: root.launching, stockWatch: true,
       library: root.library.length, loading: root.loading, error: root.lastError, lastEvent: root.lastEvent,
       job: root.job ? { name: root.job.name, n: root.job.n, total: root.job.total, label: root.job.label } : null
     })

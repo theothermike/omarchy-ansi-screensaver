@@ -46,7 +46,7 @@ DEFAULTS: dict[str, Any] = {
              "effects": dict(DEFAULT_EFFECTS)},
     "baud": {"rate": "auto", "target_seconds": 20, "max_seconds": 45, "show_cursor": True},
     "transitions": {"fps": 30, "out": dict(DEFAULT_TRANSITIONS)},
-    "idle": {"takeover": True, "lead_seconds": 2},
+    "idle": {"takeover": True, "fallback_seconds": 5},
     "sources": [
         {"provider": "github_repo", "id": "gh-sixteencolors", "repo": "sixteencolors/sixteencolors-archive",
          "label": "16colo.rs mirror (GitHub)"},
@@ -73,7 +73,7 @@ RANGES = {
     "slide_max_seconds": (10, 3600), "include_branding": (0, 1000), "reveal.ttfx": (0, 100),
     "reveal.baud": (0, 100), "ttfx.frame_rate_scale": (0.1, 10), "ttfx.max_seconds": (3, 600),
     "baud.target_seconds": (1, 600), "baud.max_seconds": (1, 600), "transitions.fps": (5, 120),
-    "idle.lead_seconds": (1, 60),
+    "idle.fallback_seconds": (1, 60),
 }
 
 

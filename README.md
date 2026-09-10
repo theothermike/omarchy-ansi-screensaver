@@ -16,10 +16,10 @@ browsers for the public art archives, and a bar icon.
   repositories** (preconfigured: the sixteencolors archive mirror), any **HTTP
   directory index** (preconfigured: artscene.textfiles.com), **asciiart.eu** and
   **ascii.co.uk** — or from local files, folders, zips and URLs.
-- Takes over Omarchy's idle screensaver without touching the stock one: its own
-  idle timer fires a couple of seconds before Omarchy's, whose launcher then sees
-  the running window and stands down (and if the stock one ever wins the race,
-  ours replaces it); lock, wake and stay-awake keep working.
+- Takes over Omarchy's idle screensaver without touching the stock one: the
+  moment the stock screensaver window appears, the plugin freezes it, starts
+  ours in its place and removes it — lock, wake and stay-awake keep working,
+  and a fallback idle timer covers a stock launcher that never ran.
 
 ## Screenshots
 
@@ -111,7 +111,7 @@ the values you changed (`ansi-screensaver config dump` shows the effective set,
 `scroll_rows_per_second` (15), `hold_top_seconds` (0), `columns` (80 / 100 /
 132 / auto), `font` (auto / vga / terminal), `reveal.ttfx` / `reveal.baud` weights,
 `ttfx.effects.<name>` and `transitions.out.<name>` weights (0 = off),
-`ttfx.max_seconds` (15), `confirm_remove`, `idle.takeover`, `idle.lead_seconds`.
+`ttfx.max_seconds` (15), `confirm_remove`, `idle.takeover`, `idle.fallback_seconds`.
 
 ## Sources
 
@@ -200,13 +200,23 @@ line-by-line continuation of tall pieces and the out-transitions itself. Effects
 run with a per-effect frame rate chosen from measured frame counts, and cut short
 at `ttfx.max_seconds` if one still overruns.
 
-Idle takeover: the plugin creates its own Wayland idle monitor (a Quickshell
-`IdleMonitor` must be created already enabled to register) at Omarchy's
-`idle.screensaver` minus `idle.lead_seconds`, and launches with the stock window
-class so Omarchy's fullscreen rules and lock timer apply unchanged. If the stock
-screensaver is already up when ours launches, its script is stopped first (it
-would otherwise `pkill` the whole class from its exit trap), ours is spawned, and
-the orphaned stock window is removed.
+Idle takeover: Omarchy's own idle service keeps its job — it launches the
+stock screensaver, locks, wakes and honours stay-awake. The plugin's service
+watches Hyprland window events; when a stock screensaver window maps (class
+`org.omarchy.screensaver` with a title other than ours — ghostty applies our
+configured `title` before mapping), it runs the launcher, which freezes the
+stock launcher and loop with `SIGSTOP` (the loop would otherwise `pkill` the
+whole window class from its exit trap as soon as ours takes focus), kills their
+`ttfx`, spawns ours with the same window class so Omarchy's fullscreen rule and
+lock timer apply unchanged, and only then kills the stock processes and window:
+the stock idle service never sees zero screensaver windows, so its lock timer
+keeps running. Firing our own timer *before* Omarchy's would not work — starting
+a screensaver counts as compositor activity, which resets Omarchy's idle monitor
+and postpones the lock. A second, plain idle monitor (a Quickshell `IdleMonitor`
+must be created already enabled to register) fires `idle.fallback_seconds` after
+Omarchy's screensaver timeout and launches ours only if nothing is running, for
+setups where the stock launcher declines (a default terminal it does not
+support, for instance).
 
 Development: the shell hot-reloads QML on save (`omarchy-shell shell rescanPlugins`
 to force; `rm -rf ~/.cache/quickshell/qmlcache && omarchy restart shell` when stale);

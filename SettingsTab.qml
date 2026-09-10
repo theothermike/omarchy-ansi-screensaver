@@ -122,10 +122,10 @@ Item {
         TimeoutControl { seconds: tab.service ? tab.service.lockSeconds : 300; allowNever: true; onCommitted: function(v) { tab.setIdle("lock", v) } } }
 
       PanelSectionHeader { text: "Idle takeover"; foreground: tab.muted }
-      FieldRow { label: "Take over the idle screensaver"; description: tab.service ? ("this screensaver launches at " + tab.service.timeoutSeconds + " s idle, " + tab.service.leadSeconds + " s before Omarchy's own · " + (tab.service.armed ? "armed" : tab.service.screensaverOff ? "screensaver-off toggle is set" : tab.service.stayAwake ? "stay-awake is on" : "off")) : ""; foreground: tab.foreground; muted: tab.muted
+      FieldRow { label: "Take over the idle screensaver"; description: tab.service ? ("replaces the stock screensaver the moment it appears; fallback launch at " + tab.service.timeoutSeconds + " s idle · " + (tab.service.armed ? "armed" : tab.service.screensaverOff ? "screensaver-off toggle is set" : tab.service.stayAwake ? "stay-awake is on" : "off")) : ""; foreground: tab.foreground; muted: tab.muted
         ToggleSwitch { checked: tab.get("idle.takeover", true) === true; foreground: tab.foreground; accent: tab.accent; onToggled: tab.set("idle.takeover", !(tab.get("idle.takeover", true) === true)) } }
-      FieldRow { label: "Lead time"; description: "seconds before Omarchy's own timer that ours fires"; foreground: tab.foreground; muted: tab.muted
-        NumberField { value: tab.get("idle.lead_seconds", 2); from: 1; to: 60; onModified: function(v) { tab.set("idle.lead_seconds", v) } } }
+      FieldRow { label: "Fallback delay"; description: "seconds after Omarchy's screensaver timeout at which ours launches if nothing is running"; foreground: tab.foreground; muted: tab.muted
+        NumberField { value: tab.get("idle.fallback_seconds", 5); from: 1; to: 60; onModified: function(v) { tab.set("idle.fallback_seconds", v) } } }
       FieldRow { label: "Omarchy screensaver toggle"; description: "the stock screensaver-off flag (also disarms this one)"; foreground: tab.foreground; muted: tab.muted
         ToggleSwitch { checked: !(tab.service && tab.service.screensaverOff); foreground: tab.foreground; accent: tab.accent; onToggled: { Quickshell.execDetached(["omarchy-toggle-screensaver"]); tab.overlay.status("toggled screensaver-off") } } }
       FieldRow { label: "Test idle takeover"; description: "arms a 10 s idle timer once; leave the mouse alone"; foreground: tab.foreground; muted: tab.muted

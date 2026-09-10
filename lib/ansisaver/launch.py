@@ -104,21 +104,15 @@ def launch(args, window_class: str | None = None) -> int:
     if ours:
         log.info("already running: %s", ours)
         return 0
-    # Omarchy's own screensaver got there first (its idle timer won a race,
-    # e.g. after our monitor was re-created mid-idle): replace it. Ours is
-    # spawned first so the stock idle service never sees zero screensaver
-    # windows and its lock timer keeps running.
-    stock_scripts, stock_rest = hypr.stock_screensaver_pids() if window_class == paths.SCREENSAVER_CLASS else ([], [])
-    stock = stock_scripts or stock_rest
+    # Omarchy's own screensaver is up -- the takeover path: its idle service
+    # launches it, we replace it (see Service.qml). It is frozen, not killed,
+    # until ours has mapped: its loops `pkill` the whole window class from
+    # their exit trap once ours takes focus, its launcher would keep spawning
+    # windows on other monitors, and closing its windows before ours map reads
+    # as a dismissal to the stock idle service, which then cancels the lock.
+    stock = hypr.stock_screensaver_procs() if window_class == paths.SCREENSAVER_CLASS else None
     if stock:
-        log.info("stock screensaver running (scripts %s, windows %s); replacing it", stock_scripts, stock_rest)
-        # Its loop checks focus every second and its exit trap pkills the
-        # whole window class, so the script dies first, without a trap.
-        for pid in stock_scripts:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+        log.info("stock screensaver running (%s); replacing it", stock)
     force = bool(getattr(args, "force", False))
     if not force and paths.SCREENSAVER_OFF_FLAG.exists():
         log.info("screensaver-off toggle set; not launching")
@@ -156,6 +150,9 @@ def launch(args, window_class: str | None = None) -> int:
     write_runtime_files(plan, cfg, pieces, font)
     if window_class == paths.PREVIEW_CLASS:
         ensure_preview_rule()
+    if stock:
+        stock = hypr.stock_screensaver_procs()  # rescan: it may have mapped more
+        stock.freeze()
     events = hypr.Events()
     focused = hypr.focused_monitor()
     try:
@@ -169,15 +166,11 @@ def launch(args, window_class: str | None = None) -> int:
             hypr.focus_monitor(focused)
         events.close()
     if stock:
-        # ours has mapped, so the stock idle service never sees zero
-        # screensaver windows; now drop the orphaned stock window and ttfx
+        # ours has mapped (and the stock idle service has had a moment to
+        # count it), so theirs can go; rescan in case a window mapped between
+        # the freeze and the spawn.
         time.sleep(0.3)
-        scripts, rest = hypr.stock_screensaver_pids()
-        for pid in scripts + rest:
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except OSError:
-                pass
+        hypr.stock_screensaver_procs().kill()
         log.info("stock screensaver replaced")
     return 0
 
