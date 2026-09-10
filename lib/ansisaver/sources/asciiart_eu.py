@@ -166,7 +166,7 @@ class AsciiArtEu(Provider):
 
     def _entry(self, rel: str, c: dict) -> Entry:
         likes, views = int(c.get("likes") or 0), int(c.get("views") or 0)
-        return Entry("item", f"piece/{rel}/{c['id']}", c["title"] or c["id"],
+        return Entry("item", f"piece/{rel}/{c['id']}", c["title"] or (rel.split("/")[-1].replace("-", " ") + " (untitled)"),
                      " · ".join(x for x in [c["artist"] or "unknown", f"♥ {likes}" if likes else "", f"{views} views" if views else ""] if x),
                      meta={"author": c["artist"], "cols": int(c["width"] or 0) or None, "rows": int(c["height"] or 0) or None, "format": "ascii",
                            "tags": rel.split("/"), "likes": likes, "views": views, "score": self.score(likes, views)},

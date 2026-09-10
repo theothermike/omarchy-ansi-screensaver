@@ -14,7 +14,7 @@ from .. import __version__, paths
 
 UA = f"ansi-screensaver/{__version__} (Omarchy plugin; +https://github.com/theothermike/omarchy-ansi-screensaver)"
 HOST_INTERVAL = {"api.16colo.rs": 0.5, "16colo.rs": 0.5, "demozoo.org": 1.0, "api.github.com": 1.0,
-                 "archive.org": 1.0, "www.asciiart.eu": 2.0, "ascii.co.uk": 2.0, "artscene.textfiles.com": 1.0}
+                 "archive.org": 1.0, "www.asciiart.eu": 1.0, "ascii.co.uk": 1.5, "artscene.textfiles.com": 1.0}
 
 
 class Offline(Exception):
