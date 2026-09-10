@@ -106,7 +106,7 @@ def render_grid_to(grid, out_dir: Path, stem: str) -> dict:
 def cmd_thumb(args) -> int:
     from .cli import Progress, emit, fail
     if not available():
-        return fail(args, "Pillow is not installed (pacman -S python-pillow)")
+        return fail(args, "Pillow is missing: add the python-pillow package to render thumbnails")
     if args.id:
         m = L.load_meta(args.id)
         if not m:

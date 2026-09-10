@@ -1,4 +1,4 @@
-"""`install`: symlink the CLI into ~/.local/bin, optionally fonts + seed."""
+"""`install` subcommand: link the CLI into ~/.local/bin, optionally fonts + seed."""
 from __future__ import annotations
 
 import json

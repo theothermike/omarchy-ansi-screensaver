@@ -94,7 +94,7 @@ def launch(args, window_class: str | None = None) -> int:
     log.info("launch class=%s force=%s piece=%s hypr=%s path=%s", window_class, getattr(args, "force", False),
              getattr(args, "piece", None), hypr.available(), os.environ.get("PATH", "")[:80])
     if not shutil.which("ttfx"):
-        notify("ANSI screensaver needs ttfx (pacman -S ttfx)")
+        notify("ANSI screensaver needs the ttfx package (it ships with Omarchy)")
         return 1
     if not shutil.which("ghostty"):
         notify("ANSI screensaver needs ghostty")

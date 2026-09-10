@@ -23,7 +23,7 @@ def run_checks(network: bool = False) -> list[dict]:
             ver = subprocess.run([ttfx, "--version"], capture_output=True, text=True, timeout=3).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             pass
-    out.append(_check("ttfx", ttfx, ver or "not found", "pacman -S ttfx"))
+    out.append(_check("ttfx", ttfx, ver or "not found", "install the ttfx package (it ships with Omarchy)"))
     out.append(_check("ghostty", shutil.which("ghostty"), shutil.which("ghostty") or "not found", "install ghostty"))
     out.append(_check("hyprland", hypr.available(), "HYPRLAND_INSTANCE_SIGNATURE set" if hypr.available() else "not running under Hyprland"))
     out.append(_check("hyprland events", hypr.socket2_path() is not None, str(hypr.socket2_path() or "socket2 missing"), critical=False))
@@ -33,7 +33,7 @@ def run_checks(network: bool = False) -> list[dict]:
         import PIL  # noqa: F401
         out.append(_check("pillow", True, "available (thumbnails)", critical=False))
     except ImportError:
-        out.append(_check("pillow", False, "missing: no thumbnails", "pacman -S python-pillow", critical=False))
+        out.append(_check("pillow", False, "missing: no thumbnails", "add the python-pillow package for thumbnails", critical=False))
     try:
         cfg = C.load()
         out.append(_check("config", True, str(paths.CONFIG_FILE)))

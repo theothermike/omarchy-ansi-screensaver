@@ -229,7 +229,7 @@ def cmd_preview(args) -> int:
 
 
 def cmd_install(args) -> int:
-    from .install import install
+    from .link import install
     return install(args)
 
 
