@@ -4,19 +4,22 @@ A screensaver that turns Omarchy's `ttfx` terminal animations into a slideshow o
 classic and modern **ANSI/ASCII scene art** — with a gallery to manage the pieces,
 browsers for the public art archives, and a bar icon.
 
-- Every piece is revealed by one of 33 `ttfx` effects (the art keeps its own
-  colours) **or** drawn at emulated modem speed the way a BBS would have shown it;
-  tall pieces scroll; a credit caption shows title / artist / group / year; then
-  one of seven out-transitions (fade, dissolve, wipe, Doom-melt, curtain, glitch,
-  blocks) clears the screen for the next piece.
-- Ships with a curated set of bundled pieces (see `ATTRIBUTION.md`) and lets you
-  add more from **16colo.rs**, **Demozoo**, the **Internet Archive**, **GitHub
+- Every piece is revealed by one of `ttfx`'s 37 effects (18 are on by default —
+  the ones that finish within ~10 s; the art keeps its own colours) **or** drawn
+  at emulated modem speed the way a BBS would have shown it. Pieces taller than
+  the screen keep flowing in line by line (15 rows/s) right after the reveal; a
+  credit caption (title / artist / group / year) sits on a free line, never over
+  the art; then one of seven out-transitions (fade, dissolve, wipe, Doom-melt,
+  curtain, glitch, blocks) clears the screen for the next piece.
+- Starts with a curated set of 50 pieces (fetched from 16colo.rs on first run,
+  credits in `ATTRIBUTION.md`) and lets you add more from **16colo.rs**, **Demozoo**, the **Internet Archive**, **GitHub
   repositories** (preconfigured: the sixteencolors archive mirror), any **HTTP
   directory index** (preconfigured: artscene.textfiles.com), **asciiart.eu** and
   **ascii.co.uk** — or from local files, folders, zips and URLs.
 - Takes over Omarchy's idle screensaver without touching the stock one: its own
   idle timer fires a couple of seconds before Omarchy's, whose launcher then sees
-  the running window and stands down; lock, wake and stay-awake keep working.
+  the running window and stands down (and if the stock one ever wins the race,
+  ours replaces it); lock, wake and stay-awake keep working.
 
 ## Screenshots
 
@@ -89,17 +92,26 @@ Omarchy's screensaver-off toggle or stay-awake is set.
 
 | Tab | What you do there |
 |---|---|
-| Gallery | thumbnails of the library; search, filter, sort; hover for a full render; enable/disable, star, remove, preview; import files/folders/zips/URLs |
+| Gallery | thumbnails of the library with quick actions under each card (▶ preview · ☆ star · ● enable/disable · ✕ remove); double-click previews, right-click toggles enabled; search, filters (enabled/disabled/starred/ANSI/ASCII), sort by newest/title/artist/year/height/rating; hover for a full render; import files/folders/zips/URLs |
 | Sources | one tree browser for every art source: open packs/categories, see thumbnails or text previews (**Preview all** renders the rest on demand), **Add** a piece or **Add all** of a pack; **Random import** N pieces from this source or all of them (walks each catalogue at random, never repeats a pick), or the **highest rated** where a source has ratings (asciiart.eu likes/views — build its rating index once); sort by rating; add your own GitHub repos / HTTP indexes |
-| Effects | which ttfx effects and out-transitions play (weights in `config.json`), reveal mix (ttfx vs. baud), colour handling, baud rate, speed; right-click an effect to preview it |
-| Settings | hold time, scroll speed, order, caption, columns, font, multi-monitor, **Omarchy's idle timeouts** (screensaver / lock, preset dropdown or exact seconds — written to `shell.json` through `omarchy-shell-config`), idle takeover (+ a 10 s test), maintenance |
+| Effects | which ttfx effects and out-transitions play — each chip shows its measured duration (`matrix ~22s`), **Recommended** restores the under-10-second set; reveal mix (ttfx vs. baud), colour handling, effect speed, baud rate, the 15 s effect time limit; right-click an effect to preview it |
+| Settings | hold time, scroll speed and pause, order, caption, logo interstitial, ASCII colouring; **Gallery: confirm before removing** (off = one click removes); columns, font (+ Install VGA font), wide pieces, multi-monitor; **Omarchy's idle timeouts** (screensaver / lock, preset dropdown or exact seconds — written to `shell.json` through `omarchy-shell-config`); idle takeover (+ a 10 s test); maintenance (doctor, thumbnails, seed, stop) |
 
-Keys: arrows/hjkl browse · Enter preview · `e` enable · `f` favourite · `a` add
-(Sources) · `/` search · Tab/Ctrl+1-4 switch tab · Esc close.
+Keys: arrows/hjkl browse · Enter preview/open · `e` enable · `f` favourite ·
+`Delete` remove · `/` search · Tab / Ctrl+1-4 switch tab · F5 refresh · Esc close.
+In Sources also: `a` add · `p` preview all · `n` load more · Backspace up a level.
 
 **Screensaver** — any key or mouse movement ends it (also focus loss and the
-lock screen). `ansi-screensaver launch --force` starts it now, `stop` ends it,
-`preview <id>` shows one piece on the focused monitor.
+lock screen). `omarchy-shell ansisaver launch` (or `ansi-screensaver launch --force`)
+starts it now, `stop` ends it, `preview <id>` shows one piece on the focused monitor.
+
+**Configuration** — `~/.config/omarchy/ansi-screensaver/config.json` holds only
+the values you changed (`ansi-screensaver config dump` shows the effective set,
+`config set key value` changes one). Notable keys: `hold_seconds` (7… whatever you
+like), `scroll_rows_per_second` (15), `hold_top_seconds` (0), `columns` (80 / 100 /
+132 / auto), `font` (auto / vga / terminal), `reveal.ttfx` / `reveal.baud` weights,
+`ttfx.effects.<name>` and `transitions.out.<name>` weights (0 = off),
+`ttfx.max_seconds` (15), `confirm_remove`, `idle.takeover`, `idle.lead_seconds`.
 
 ## Sources
 
@@ -149,7 +161,7 @@ ansi-screensaver stop [--previews] | preview [ID | --random] [--effect NAME]
 ansi-screensaver library list|show|enable|disable|favorite|unfavorite|remove ID
 ansi-screensaver import <file|dir|zip|url>... [--encoding cp437|latin1|utf8] [--wrap pending]
 ansi-screensaver sources list|add --kind github_repo|http_index --url ...|remove ID
-ansi-screensaver browse --source ID [--path SEG]... [--search Q] [--page N] [--details]
+ansi-screensaver browse --source ID [--path SEG]... [--search Q] [--page N] [--details]   # --source omitted lists sources
 ansi-screensaver add --source ID --entry EID [--all]     preview --source ID --entry EID
 ansi-screensaver random --count N [--source ID | --all] [--top]      index build|status --source ID
 ansi-screensaver idle get | set [--screensaver S] [--lock S]        # Omarchy's own timeouts (shell.json)
@@ -162,7 +174,8 @@ Add `--json` for machine-readable output and `--progress` to stream
 `progress n/total label` lines on long jobs. IPC (`omarchy-shell ansisaver <fn>`):
 `open`, `openTab <tab>`, `launch`, `stop`, `preview [id]`, `toggleTakeover`,
 `refresh`, `status`, `armTest <seconds>`, `disarmTest`, `set <key> <json>`,
-`setIdle screensaver|lock <seconds>`, `library <action> <id>`.
+`setIdle screensaver|lock <seconds>`, `library <action> <id>`,
+`browse <source> 'seg|seg|seg'` (opens the gallery at that source path).
 
 ## Files
 
@@ -170,7 +183,7 @@ Add `--json` for machine-readable output and `--progress` to stream
 |---|---|
 | `~/.config/omarchy/ansi-screensaver/config.json` | settings (`config dump` shows every key) |
 | `~/.config/omarchy/ansi-screensaver/library/<id>/` | `original.*`, `meta.json`, `flat.ans` (normalised), `render.png`, `thumb.png` |
-| `~/.cache/ansi-screensaver/` | source API responses, downloaded packs, previews, font-size calibration |
+| `~/.cache/ansi-screensaver/` | source API responses, downloaded packs, previews, font-size calibration, `sources/random-history.json` (random picks), `sources/asciiart_eu/index.json` (rating index) |
 | `~/.local/state/ansi-screensaver/runner.log` | what the slideshow did |
 | `catalog.json`, `ATTRIBUTION.md` (repo) | the curated starter set (fetched on first run) and its credits |
 
@@ -180,10 +193,20 @@ Add `--json` for machine-readable output and `--progress` to stream
 cannot take, so the engine interprets each file into a cell grid (SAUCE, CP437 /
 Latin-1 / UTF-8, wrap at the SAUCE width, iCE, erase-with-background) and writes
 a `flat.ans` of plain 24-bit SGR rows in the VGA palette — which `ttfx` animates
-faithfully with `--existing-color-handling always`. The runner sizes ghostty so 80
-columns fill the monitor (self-calibrating after the first run), pins the piece with
-an invisible anchor so effects place it exactly, and draws captions, scrolling and
-out-transitions itself.
+faithfully with `--existing-color-handling always`. The runner sizes ghostty so your
+column count fills the monitor (self-calibrating after the first run), pins the piece
+with an invisible anchor so effects place it exactly, and draws captions, the
+line-by-line continuation of tall pieces and the out-transitions itself. Effects are
+run with a per-effect frame rate chosen from measured frame counts, and cut short
+at `ttfx.max_seconds` if one still overruns.
+
+Idle takeover: the plugin creates its own Wayland idle monitor (a Quickshell
+`IdleMonitor` must be created already enabled to register) at Omarchy's
+`idle.screensaver` minus `idle.lead_seconds`, and launches with the stock window
+class so Omarchy's fullscreen rules and lock timer apply unchanged. If the stock
+screensaver is already up when ours launches, its script is stopped first (it
+would otherwise `pkill` the whole class from its exit trap), ours is spawned, and
+the orphaned stock window is removed.
 
 Development: the shell hot-reloads QML on save (`omarchy-shell shell rescanPlugins`
 to force; `rm -rf ~/.cache/quickshell/qmlcache && omarchy restart shell` when stale);
