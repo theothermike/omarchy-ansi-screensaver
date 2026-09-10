@@ -94,6 +94,10 @@ Item {
     var v = Number(root.shellIdle.screensaver)
     return isFinite(v) && v >= 0 ? Math.round(v) : 150
   }
+  readonly property int lockSeconds: {
+    var v = Number(root.shellIdle.lock)
+    return isFinite(v) && v >= 0 ? Math.round(v) : 300
+  }
   readonly property int leadSeconds: {
     var v = Number(root.config.idle ? root.config.idle.lead_seconds : 2)
     return isFinite(v) && v >= 1 ? Math.round(v) : 2
@@ -329,6 +333,18 @@ Item {
     return "ok"
   }
 
+  // Omarchy's own idle timeouts (shell.json). Optimistic update; the CLI
+  // writes through omarchy-shell-config and the shell.json watcher confirms.
+  function setOmarchyIdle(key, seconds) {
+    var n = parseInt(seconds)
+    if (!isFinite(n) || n < 10) return "need seconds >= 10"
+    if (key !== "screensaver" && key !== "lock") return "unknown key"
+    var next = Object.assign({}, root.shellIdle); next[key] = n; root.shellIdle = next
+    root.runCli(["idle", "set", "--" + key, String(n)], {})
+    root.logEvent("omarchy idle." + key + "=" + n)
+    return "ok"
+  }
+
   function toggleTakeover() {
     var next = !root.takeoverEnabled
     root.setConfig("idle.takeover", next ? "true" : "false")
@@ -354,7 +370,7 @@ Item {
   function statusJson() {
     return JSON.stringify({
       armed: root.armed, takeoverEnabled: root.takeoverEnabled, screensaverOff: root.screensaverOff,
-      stayAwake: root.stayAwake, flagsLoaded: root.flagsLoaded, screensaverSeconds: root.screensaverSeconds,
+      stayAwake: root.stayAwake, flagsLoaded: root.flagsLoaded, screensaverSeconds: root.screensaverSeconds, lockSeconds: root.lockSeconds,
       leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: root.monitor ? root.monitor.isIdle : false,
       monitorActive: root.monitorActive, monitorTimeout: root.monitor ? root.monitor.timeout : null, monitorIsTest: root.monitorIsTest,
       launchedThisCycle: root.launchedThisCycle, testSeconds: root.testSeconds,
@@ -385,6 +401,7 @@ Item {
     function armTest(seconds: string): string { return root.armTest(seconds) }
     function disarmTest(): string { return root.disarmTest() }
     function set(key: string, valueJson: string): string { return root.setConfig(key, valueJson) }
+    function setIdle(key: string, seconds: string): string { return root.setOmarchyIdle(key, seconds) }
     function library(action: string, id: string): string { return root.libraryAction(action, id) }
   }
 }

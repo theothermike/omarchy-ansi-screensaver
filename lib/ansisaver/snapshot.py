@@ -5,6 +5,7 @@ from . import __version__
 from . import config as C
 from . import effects, library as L, transitions
 from .doctor import run_checks
+from .idle import read as read_idle
 
 
 def build(network: bool = False) -> dict:
@@ -21,6 +22,7 @@ def build(network: bool = False) -> dict:
         "config": cfg,
         "library": L.summary_rows(pieces),
         "doctor": run_checks(network=network),
+        "omarchy_idle": read_idle(),
         "sources": sources,
         "effects": {
             "ttfx": effects.ALL_EFFECTS,

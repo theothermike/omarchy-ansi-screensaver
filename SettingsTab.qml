@@ -19,6 +19,46 @@ Item {
     else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) { flick.contentY = Math.max(0, flick.contentY - 60); event.accepted = true }
   }
   function set(key, value) { if (tab.service) tab.service.setConfig(key, JSON.stringify(value)); if (tab.overlay) tab.overlay.status(key + " → " + JSON.stringify(value)) }
+  function setIdle(key, seconds) { if (tab.service) { var r = tab.service.setOmarchyIdle(key, seconds); tab.overlay.status(r === "ok" ? ("Omarchy idle." + key + " → " + seconds + " s") : r) } }
+  function fmtSeconds(sec) {
+    if (sec >= 86400 * 20) return "never"
+    if (sec % 3600 === 0) return (sec / 3600) + " h"
+    if (sec % 60 === 0) return (sec / 60) + " min"
+    return sec + " s"
+  }
+
+  // Preset dropdown + exact seconds field, both bound to the same value.
+  component TimeoutControl: Row {
+    id: tc
+    property int seconds: 0
+    property bool allowNever: false
+    signal committed(int value)
+    spacing: Style.spacing.controlGap
+    readonly property var presets: {
+      var base = [30, 60, 120, 180, 300, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, 10800, 14400]
+      var out = base.map(function(v) { return { value: String(v), label: tab.fmtSeconds(v) } })
+      if (tc.allowNever) out.push({ value: String(30 * 86400), label: "never (30 days)" })
+      var known = base.slice(); if (tc.allowNever) known.push(30 * 86400)
+      if (known.indexOf(tc.seconds) === -1) out.unshift({ value: String(tc.seconds), label: "custom · " + tab.fmtSeconds(tc.seconds) })
+      return out
+    }
+    Dropdown {
+      anchors.verticalCenter: parent.verticalCenter
+      width: Style.space(180)
+      showLabel: false
+      value: String(tc.seconds)
+      options: tc.presets
+      onChanged: function(v) { var n = parseInt(v); if (isFinite(n) && n !== tc.seconds) tc.committed(n) }
+    }
+    NumberField {
+      anchors.verticalCenter: parent.verticalCenter
+      label: "seconds"
+      value: tc.seconds
+      from: 10; to: 30 * 86400; stepSize: 30
+      fieldWidth: Style.space(90)
+      onModified: function(v) { if (v !== tc.seconds) tc.committed(v) }
+    }
+  }
   function get(key, fallback) { return Model.get(tab.config, key, fallback) }
   function doctorFind(name) {
     var d = tab.service ? tab.service.doctor : []
@@ -71,8 +111,14 @@ Item {
       FieldRow { label: "Multiple monitors"; foreground: tab.foreground; muted: tab.muted
         ButtonGroup { options: [{ value: "independent", label: "Different art each" }, { value: "mirrored", label: "Mirrored" }]; value: tab.get("multi_monitor", "independent"); foreground: tab.foreground; accent: tab.accent; onChanged: function(v) { tab.set("multi_monitor", v) } } }
 
-      PanelSectionHeader { text: "Idle"; foreground: tab.muted }
-      FieldRow { label: "Take over the idle screensaver"; description: tab.service ? ("Omarchy idle.screensaver = " + tab.service.screensaverSeconds + " s → this screensaver launches at " + tab.service.timeoutSeconds + " s · " + (tab.service.armed ? "armed" : tab.service.screensaverOff ? "screensaver-off toggle is set" : tab.service.stayAwake ? "stay-awake is on" : "off")) : ""; foreground: tab.foreground; muted: tab.muted
+      PanelSectionHeader { text: "Idle timeouts (Omarchy shell.json)"; foreground: tab.muted }
+      FieldRow { label: "Screensaver after"; description: "seconds of no input before the screensaver starts (Omarchy's idle.screensaver)"; foreground: tab.foreground; muted: tab.muted; controlWidth: Style.space(340)
+        TimeoutControl { seconds: tab.service ? tab.service.screensaverSeconds : 150; onCommitted: function(v) { tab.setIdle("screensaver", v) } } }
+      FieldRow { label: "Lock after"; description: (tab.service && tab.service.lockSeconds <= tab.service.screensaverSeconds) ? "⚠ lock fires before the screensaver — counted from the start of idleness, not after the screensaver" : "seconds of no input before the lock screen (idle.lock); counted from the start of idleness"; foreground: tab.foreground; muted: tab.muted; controlWidth: Style.space(340)
+        TimeoutControl { seconds: tab.service ? tab.service.lockSeconds : 300; allowNever: true; onCommitted: function(v) { tab.setIdle("lock", v) } } }
+
+      PanelSectionHeader { text: "Idle takeover"; foreground: tab.muted }
+      FieldRow { label: "Take over the idle screensaver"; description: tab.service ? ("this screensaver launches at " + tab.service.timeoutSeconds + " s idle, " + tab.service.leadSeconds + " s before Omarchy's own · " + (tab.service.armed ? "armed" : tab.service.screensaverOff ? "screensaver-off toggle is set" : tab.service.stayAwake ? "stay-awake is on" : "off")) : ""; foreground: tab.foreground; muted: tab.muted
         ToggleSwitch { checked: tab.get("idle.takeover", true) === true; foreground: tab.foreground; accent: tab.accent; onToggled: tab.set("idle.takeover", !(tab.get("idle.takeover", true) === true)) } }
       FieldRow { label: "Lead time"; description: "seconds before Omarchy's own timer that ours fires"; foreground: tab.foreground; muted: tab.muted
         NumberField { value: tab.get("idle.lead_seconds", 2); from: 1; to: 60; onModified: function(v) { tab.set("idle.lead_seconds", v) } } }

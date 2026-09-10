@@ -233,6 +233,11 @@ def cmd_install(args) -> int:
     return install(args)
 
 
+def cmd_idle(args) -> int:
+    from .idle import cmd_idle as run
+    return run(args)
+
+
 def cmd_fonts(args) -> int:
     from .fonts import cmd
     return cmd(args)
@@ -335,6 +340,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fonts", action="store_true")
     p.add_argument("--seed", action="store_true")
     p.set_defaults(func=cmd_install)
+
+    p = sub.add_parser("idle", help="Omarchy's idle timeouts (shell.json idle.screensaver / idle.lock)")
+    p.add_argument("op", choices=["get", "set"])
+    p.add_argument("--screensaver", type=int, help="seconds of idle before the screensaver")
+    p.add_argument("--lock", type=int, help="seconds of idle before the lock screen")
+    p.set_defaults(func=cmd_idle)
 
     p = sub.add_parser("fonts", help="VGA font install/status")
     p.add_argument("op", choices=["install", "status"])
