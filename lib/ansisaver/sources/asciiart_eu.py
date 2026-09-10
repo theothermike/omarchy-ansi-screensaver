@@ -84,7 +84,7 @@ class _Cards(HTMLParser):
 class AsciiArtEu(Provider):
     kind = "asciiart_eu"
     label = "asciiart.eu"
-    caps = Capabilities(has_thumbnails=False, has_search=False, can_add_collection=True)
+    caps = Capabilities(has_thumbnails=False, has_search=False, can_add_collection=True, has_ratings=True, has_index=True)
     license_note = "asciiart.eu: art may be enjoyed, used and shared; keep the artist's name/initials in the work."
 
     def _fetch_page(self, rel: str) -> _Cards:
@@ -109,11 +109,29 @@ class AsciiArtEu(Provider):
     def _cards(self, rel: str) -> list[dict]:
         p = self._fetch_page(rel)
         cards = p.cards or self._fallback_cards(rel)
+        # likes / views per card: data-views on the card, likes after the heart icon
+        text = self.http.get_text(urllib.parse.urljoin(BASE + "/", rel.lstrip("/")), ttl=7 * 86400)
+        stats: dict[str, tuple[int, int]] = {}
+        for m in re.finditer(r'<div class="card art-card[^"]*"([^>]*)>(.*?)</div></div></div>', text, re.S):
+            attrs, body = m.group(1), m.group(2)
+            mid = re.search(r'data-id="([^"]+)"', attrs)
+            if not mid:
+                continue
+            mv = re.search(r'data-views="(\d+)"', attrs)
+            ml = re.search(r'icon-heart-alt[^>]*></i>\s*(\d+)', body)
+            stats[mid.group(1)] = (int(ml.group(1)) if ml else 0, int(mv.group(1)) if mv else 0)
         for c in cards:
             c["text"] = (c["text"] or "").replace("\r", "").strip("\n")
             # drop trailing spaces per line, keep leading ones
             c["text"] = "\n".join(line.rstrip() for line in c["text"].split("\n"))
+            c["likes"], c["views"] = stats.get(c["id"], (0, 0))
         return [c for c in cards if c["text"].strip()]
+
+    @staticmethod
+    def score(likes: int, views: int) -> float:
+        """Likes dominate; views break ties (log scale)."""
+        import math
+        return likes * 10.0 + math.log10(max(1, views))
 
     def _categories(self, rel: str = "") -> list[tuple[str, str]]:
         """Gallery categories/subcategories: the <a class="card-gallery" title=...> cards."""
@@ -147,10 +165,93 @@ class AsciiArtEu(Provider):
         raise SourceError(f"unknown path {seg}")
 
     def _entry(self, rel: str, c: dict) -> Entry:
-        return Entry("item", f"piece/{rel}/{c['id']}", c["title"] or c["id"], c["artist"] or "unknown",
+        likes, views = int(c.get("likes") or 0), int(c.get("views") or 0)
+        return Entry("item", f"piece/{rel}/{c['id']}", c["title"] or c["id"],
+                     " · ".join(x for x in [c["artist"] or "unknown", f"♥ {likes}" if likes else "", f"{views} views" if views else ""] if x),
                      meta={"author": c["artist"], "cols": int(c["width"] or 0) or None, "rows": int(c["height"] or 0) or None, "format": "ascii",
-                           "tags": rel.split("/")},
+                           "tags": rel.split("/"), "likes": likes, "views": views, "score": self.score(likes, views)},
                      text_preview=c["text"], source_url=f"{BASE}/{rel}")
+
+    # -- rating index (local state for random-top picks) ----------------------
+    def _index_path(self):
+        from .. import paths
+        return paths.SOURCES_CACHE / self.id / "index.json"
+
+    def index_status(self) -> dict:
+        import json, time
+        p = self._index_path()
+        try:
+            j = json.loads(p.read_text(encoding="utf-8"))
+            return {"available": True, "items": len(j.get("items") or []), "built": j.get("built"), "pages": j.get("pages"),
+                    "age_days": round((time.time() - float(j.get("built_at") or 0)) / 86400, 1)}
+        except (OSError, ValueError):
+            return {"available": False}
+
+    def index_build(self, progress=None, limit=None) -> dict:
+        """Crawl every category page once and record likes/views per piece."""
+        import json, time
+        cats = self._categories("")
+        pages: list[str] = []
+        for i, (cat, _label) in enumerate(cats):
+            if progress:
+                progress(i + 1, len(cats), f"scanning {cat}")
+            subs = [p for p, _ in self._categories(cat) if p != cat]
+            pages.extend(subs or [cat])
+            if limit and len(pages) >= limit:
+                break
+        pages = pages[:limit] if limit else pages
+        items = []
+        for i, rel in enumerate(pages):
+            if progress:
+                progress(i + 1, len(pages), rel)
+            try:
+                for c in self._cards(rel):
+                    items.append({"id": f"piece/{rel}/{c['id']}", "rel": rel, "title": c["title"], "artist": c["artist"],
+                                  "likes": int(c.get("likes") or 0), "views": int(c.get("views") or 0),
+                                  "score": self.score(int(c.get("likes") or 0), int(c.get("views") or 0))})
+            except Exception:  # noqa: BLE001
+                continue
+        p = self._index_path()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps({"built": time.strftime("%Y-%m-%d"), "built_at": time.time(), "pages": len(pages), "items": items}), encoding="utf-8")
+        return {"pages": len(pages), "items": len(items), "path": str(p)}
+
+    def random_items(self, n, rng, top=False):
+        import json
+        if top:
+            try:
+                idx = json.loads(self._index_path().read_text(encoding="utf-8")).get("items") or []
+            except (OSError, ValueError):
+                raise SourceError("asciiart.eu rating index not built yet (Sources tab: 'Build rating index', or `ansi-screensaver index build --source asciiart_eu`)")
+            idx = sorted(idx, key=lambda x: -x["score"])
+            pool = idx[: max(n * 5, len(idx) // 10 or n)]      # the top tenth (at least 5n)
+            picks = rng.sample(pool, min(n, len(pool)))
+            out = []
+            for it in picks:
+                cards = {c["id"]: c for c in self._cards(it["rel"])}
+                cid = it["id"].rsplit("/", 1)[-1]
+                if cid in cards:
+                    out.append(self._entry(it["rel"], cards[cid]))
+            return out
+        # plain random: random category -> random subcategory -> random card
+        picked, seen, attempts = [], set(), 0
+        cats = self._categories("")
+        while len(picked) < n and attempts < n * 6 + 6 and cats:
+            attempts += 1
+            cat, _ = rng.choice(cats)
+            try:
+                subs = [p for p, _ in self._categories(cat) if p != cat]
+                rel = rng.choice(subs) if subs else cat
+                cards = self._cards(rel)
+            except Exception:  # noqa: BLE001
+                continue
+            if not cards:
+                continue
+            e = self._entry(rel, rng.choice(cards))
+            if e.id not in seen:
+                seen.add(e.id)
+                picked.append(e)
+        return picked
 
     def iter_items(self, entry_id: str):
         if entry_id.startswith("cat/"):
@@ -167,9 +268,11 @@ class AsciiArtEu(Provider):
             if c["id"] == cid:
                 text = c["text"] + "\n"
                 name = re.sub(r"[^a-z0-9]+", "-", (c["title"] or cid).lower()).strip("-") or cid
+                likes, views = int(c.get("likes") or 0), int(c.get("views") or 0)
                 return Fetched(data=text.encode("utf-8"), filename=f"{name}-{cid[:6]}.txt",
                                credits=Credits(title=c["title"], author=c["artist"] if c["artist"] and c["artist"].lower() != "unknown" else "", tags=rel.split("/")),
-                               source_url=f"{BASE}/{rel}", license_note=self.license_note, encoding_hint="utf8")
+                               source_url=f"{BASE}/{rel}", license_note=self.license_note, encoding_hint="utf8",
+                               rating={"likes": likes, "views": views, "score": self.score(likes, views)})
         raise SourceError(f"piece {cid} not found on {rel}")
 
     def ping(self):

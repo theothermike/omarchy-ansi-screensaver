@@ -42,6 +42,7 @@ function filterLibrary(lib, search, filter, sort) {
     else if (key === "author") { av = (a.author || "").toLowerCase(); bv = (b.author || "").toLowerCase() }
     else if (key === "year") { av = a.year || 0; bv = b.year || 0; return bv - av }
     else if (key === "size") { av = (a.rows || 0); bv = (b.rows || 0); return bv - av }
+    else if (key === "rating") { av = a.score || 0; bv = b.score || 0; return bv - av }
     else { av = a.added || ""; bv = b.added || ""; return av < bv ? 1 : (av > bv ? -1 : 0) }
     return av < bv ? -1 : (av > bv ? 1 : 0)
   })
@@ -72,4 +73,14 @@ function credits(p) {
 function pct(n, total) {
   if (!total) return 0
   return Math.max(0, Math.min(1, n / total))
+}
+
+function sortEntries(entries, key) {
+  var out = (entries || []).slice()
+  if (key === "rating") out.sort(function(a, b) { return ((b.meta && b.meta.score) || 0) - ((a.meta && a.meta.score) || 0) })
+  else if (key === "title") out.sort(function(a, b) { return (a.label || "").toLowerCase() < (b.label || "").toLowerCase() ? -1 : 1 })
+  else if (key === "year") out.sort(function(a, b) { return ((b.meta && b.meta.year) || 0) - ((a.meta && a.meta.year) || 0) })
+  // collections first in every order
+  out.sort(function(a, b) { return (a.type === "collection" ? 0 : 1) - (b.type === "collection" ? 0 : 1) })
+  return out
 }

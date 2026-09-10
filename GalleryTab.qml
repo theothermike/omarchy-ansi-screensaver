@@ -130,7 +130,7 @@ Item {
         showLabel: false
         value: tab.sortKey
         options: [{ value: "added", label: "newest" }, { value: "title", label: "title" }, { value: "author", label: "author" },
-                  { value: "year", label: "year" }, { value: "size", label: "height" }]
+                  { value: "year", label: "year" }, { value: "size", label: "height" }, { value: "rating", label: "rating" }]
         onChanged: function(v) { tab.sortKey = v }
       }
       Button {

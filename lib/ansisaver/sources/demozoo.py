@@ -47,8 +47,10 @@ class Demozoo(Provider):
             j = self.http.get_json(f"{API}/productions/?production_type={tid}&page_size={PAGE}&page={page}", ttl=86400)
             entries = [self._prod_entry(p) for p in j.get("results") or []]
             name = next((n for n, t, _ in TYPES if str(t) == tid), tid)
-            return self.listing(path, entries, [name], next_page=page + 1 if j.get("next") else None,
-                                notice="thumbnails load per item (Demozoo lists carry no screenshots)")
+            lst = self.listing(path, entries, [name], next_page=page + 1 if j.get("next") else None,
+                               notice="thumbnails load per item (Demozoo lists carry no screenshots)")
+            lst.total_pages = max(1, -(-int(j.get("count") or 0) // PAGE))
+            return lst
         raise SourceError(f"unknown path {seg}")
 
     def _detail(self, pid: str) -> dict:

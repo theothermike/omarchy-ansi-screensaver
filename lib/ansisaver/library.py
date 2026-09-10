@@ -360,6 +360,7 @@ def summary_rows(pieces: list[dict]) -> list[dict]:
             "pack": (m.get("source") or {}).get("pack"),
             "image_url": (m.get("source") or {}).get("image_url"),
             "tags": m.get("tags") or [], "category": m.get("category"),
+            "rating": m.get("rating"), "score": float((m.get("rating") or {}).get("score") or 0),
             "enabled": bool(m.get("enabled", True)), "favorite": bool(m.get("favorite")),
             "bundled": bool(m.get("bundled")),
             "thumb": str(thumb) if thumb.is_file() else None,

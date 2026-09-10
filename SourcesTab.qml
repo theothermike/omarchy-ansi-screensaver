@@ -24,6 +24,11 @@ Item {
   property string search: ""
   property int page: 1
   property var entries: []
+  property string sortKey: "default"
+  readonly property var shownEntries: Model.sortEntries(tab.entries, tab.sortKey)
+  property int randomCount: 5
+  property string randomFrom: "source"     // source | all
+  property string randomPick: "random"     // random | top
   property var listing: null
   property bool busy: false
   property bool addOpen: false
@@ -82,7 +87,7 @@ Item {
     for (var i = 0; i < tab.sources.length; i++) if (tab.sources[i].id === tab.sourceId) return tab.sources[i]
     return null
   }
-  readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < entries.length) ? entries[grid.currentIndex] : null
+  readonly property var current: (grid.currentIndex >= 0 && grid.currentIndex < shownEntries.length) ? shownEntries[grid.currentIndex] : null
 
   function onShown() {
     var nav = tab.overlay ? tab.overlay.pendingNavigate : null
@@ -193,8 +198,8 @@ Item {
   }
   property var previewItem: null
   function move(delta) {
-    if (tab.entries.length === 0) return
-    grid.currentIndex = Math.max(0, Math.min(tab.entries.length - 1, grid.currentIndex + delta))
+    if (tab.shownEntries.length === 0) return
+    grid.currentIndex = Math.max(0, Math.min(tab.shownEntries.length - 1, grid.currentIndex + delta))
     grid.positionViewAtIndex(grid.currentIndex, GridView.Contain)
   }
   function columns() { return Math.max(1, Math.floor(grid.width / grid.cellWidth)) }
@@ -296,6 +301,16 @@ Item {
           onAccepted: { tab.search = text; tab.browse([], text, 1, false); if (tab.overlay) tab.overlay.focusKeys() }
           Keys.onEscapePressed: function(event) { if (text !== "") { text = ""; tab.search = ""; tab.browse([], "", 1, false) } else if (tab.overlay) tab.overlay.dismiss(); event.accepted = true }
         }
+        Dropdown {
+          anchors.verticalCenter: parent.verticalCenter
+          width: Style.space(120)
+          showLabel: false
+          value: tab.sortKey
+          options: (tab.source && tab.source.has_ratings)
+            ? [{ value: "default", label: "site order" }, { value: "rating", label: "rating" }, { value: "title", label: "title" }]
+            : [{ value: "default", label: "site order" }, { value: "title", label: "title" }, { value: "year", label: "year" }]
+          onChanged: function(v) { tab.sortKey = v; grid.currentIndex = 0 }
+        }
         Text { anchors.verticalCenter: parent.verticalCenter; text: tab.busy ? "loading…" : (tab.entries.length + " entries"); color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
         Button {
           anchors.verticalCenter: parent.verticalCenter
@@ -307,9 +322,46 @@ Item {
         }
       }
 
+      // ---- random import ----------------------------------------------------
+      Row {
+        id: randomRow
+        width: parent.width
+        spacing: Style.spacing.xs
+        Text { anchors.verticalCenter: parent.verticalCenter; text: "Random import:"; color: tab.muted; font.family: Style.font.family; font.pixelSize: Style.font.caption }
+        Dropdown { anchors.verticalCenter: parent.verticalCenter; width: Style.space(70); showLabel: false; value: String(tab.randomCount)
+          options: ["1", "3", "5", "10", "25", "50", "100"]; onChanged: function(v) { tab.randomCount = parseInt(v) } }
+        Dropdown { anchors.verticalCenter: parent.verticalCenter; width: Style.space(150); showLabel: false; value: tab.randomFrom
+          options: [{ value: "source", label: "from " + (tab.source ? tab.source.name : "this source") }, { value: "all", label: "from all sources" }]
+          onChanged: function(v) { tab.randomFrom = v } }
+        Dropdown { anchors.verticalCenter: parent.verticalCenter; width: Style.space(140); showLabel: false; value: tab.randomPick
+          options: [{ value: "random", label: "any piece" }, { value: "top", label: "highest rated" }]
+          onChanged: function(v) { tab.randomPick = v } }
+        Button {
+          anchors.verticalCenter: parent.verticalCenter
+          text: "Import"; bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
+          enabled: !!(tab.service && !tab.service.job) && (tab.randomPick !== "top" || tab.randomFrom === "all" || (tab.source && tab.source.has_ratings))
+          tooltipText: tab.randomPick === "top" ? "only sources with ratings (asciiart.eu likes/views) — needs the rating index" : "picks by walking the source catalogue at random"
+          onClicked: {
+            var args = ["random", "--count", String(tab.randomCount)]
+            if (tab.randomFrom === "all") args.push("--all"); else args.push("--source", tab.sourceId)
+            if (tab.randomPick === "top") args.push("--top")
+            tab.status(tab.service.startJob("random import", args))
+          }
+        }
+        Button {
+          anchors.verticalCenter: parent.verticalCenter
+          visible: !!(tab.source && tab.source.has_index)
+          text: (tab.source && tab.source.index && tab.source.index.available) ? ("Rebuild rating index (" + tab.source.index.items + " rated, " + tab.source.index.age_days + " d old)") : "Build rating index"
+          tooltipText: "crawls every category page once (a few minutes) so 'highest rated' can pick across the whole site"
+          bordered: true; fontSize: Style.font.caption; foreground: tab.foreground; accent: tab.accent
+          enabled: !!(tab.service && !tab.service.job)
+          onClicked: tab.status(tab.service.startJob("rating index", ["index", "build", "--source", tab.sourceId]))
+        }
+      }
+
       Row {
         width: parent.width
-        height: parent.height - crumbRow.height - Style.spacing.sm
+        height: parent.height - crumbRow.height - randomRow.height - Style.spacing.sm * 2
         spacing: Style.spacing.panelGap
 
         GridView {
@@ -321,7 +373,7 @@ Item {
           cellHeight: Style.space(206)
           cacheBuffer: cellHeight * 2
           boundsBehavior: Flickable.StopAtBounds
-          model: tab.entries
+          model: tab.shownEntries
           delegate: SourceCard {}
           footer: Item {
             width: grid.width

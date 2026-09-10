@@ -18,6 +18,8 @@ class Capabilities:
     has_search: bool = False
     can_add_collection: bool = False
     needs_network: bool = True
+    has_ratings: bool = False      # items carry meta.score (likes/views…)
+    has_index: bool = False        # supports `index build` for top-rated sampling
 
 
 @dataclass
@@ -45,10 +47,12 @@ class Listing:
     entries: list[Entry]
     next_page: int | None = None
     notice: str | None = None
+    total_pages: int | None = None
 
     def to_dict(self) -> dict:
         return {"source": self.source, "path": self.path, "breadcrumbs": self.breadcrumbs,
-                "entries": [e.to_dict() for e in self.entries], "next_page": self.next_page, "notice": self.notice}
+                "entries": [e.to_dict() for e in self.entries], "next_page": self.next_page, "notice": self.notice,
+                "total_pages": self.total_pages}
 
 
 @dataclass
@@ -71,6 +75,7 @@ class Fetched:
     image_url: str | None = None
     encoding_hint: str | None = None
     pack: str | None = None
+    rating: dict | None = None     # {"likes", "views", "score"} when the source has ratings
 
 
 class SourceError(Exception):
@@ -132,6 +137,51 @@ class Provider:
     def ping(self) -> tuple[bool, str]:
         return True, "no check"
 
+    # -- random sampling ----------------------------------------------------
+    def random_items(self, n: int, rng, top: bool = False) -> list[Entry]:
+        """Pick up to n random art items from the whole catalogue by walking
+        the tree at random (providers with a cheaper way override this).
+        `top` asks for highly rated items (only meaningful with has_ratings)."""
+        picked: list[Entry] = []
+        seen: set[str] = set()
+        attempts = 0
+        while len(picked) < n and attempts < n * 6 + 6:
+            attempts += 1
+            e = self._random_walk(rng)
+            if e is not None and e.id not in seen:
+                seen.add(e.id)
+                picked.append(e)
+        return picked
+
+    def _random_walk(self, rng, max_depth: int = 6) -> Entry | None:
+        path: list[str] = []
+        for _ in range(max_depth):
+            try:
+                listing = self.list(path, None, 1)
+            except Exception:  # noqa: BLE001
+                return None
+            if listing.total_pages and listing.total_pages > 1:
+                page = rng.randint(1, listing.total_pages)
+                if page > 1:
+                    try:
+                        listing = self.list(path, None, page)
+                    except Exception:  # noqa: BLE001
+                        pass
+            items = [e for e in listing.entries if e.type == "item"]
+            cols = [e for e in listing.entries if e.type == "collection"]
+            if items and (not cols or rng.random() < 0.7):
+                return rng.choice(items)
+            if not cols:
+                return None
+            path = path + [rng.choice(cols).id]
+        return None
+
+    def index_build(self, progress=None, limit: int | None = None) -> dict:
+        raise SourceError(f"{self.label} has no rating index")
+
+    def index_status(self) -> dict:
+        return {"available": False}
+
     # -- helpers -----------------------------------------------------------
     def online(self) -> bool | None:
         try:
@@ -146,6 +196,8 @@ class Provider:
         return {"id": self.id, "name": self.label, "kind": self.kind,
                 "has_thumbnails": self.caps.has_thumbnails, "has_search": self.caps.has_search,
                 "can_add_collection": self.caps.can_add_collection, "online": self.online(),
+                "has_ratings": self.caps.has_ratings, "has_index": self.caps.has_index,
+                "index": self.index_status() if self.caps.has_index else None,
                 "user": bool(self.instance.get("user")), "url": self.instance.get("url") or self.instance.get("repo")}
 
     def listing(self, path, entries, breadcrumbs=None, next_page=None, notice=None) -> Listing:

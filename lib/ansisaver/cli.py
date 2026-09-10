@@ -263,6 +263,16 @@ def cmd_add(args) -> int:
     return scli.cmd_add(args)
 
 
+def cmd_random(args) -> int:
+    from .sources import cli as scli
+    return scli.cmd_random(args)
+
+
+def cmd_index(args) -> int:
+    from .sources import cli as scli
+    return scli.cmd_index(args)
+
+
 def cmd_fetch(args) -> int:
     from .catalog import cmd_fetch
     return cmd_fetch(args)
@@ -390,6 +400,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--encoding", choices=["cp437", "latin1", "utf8"])
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_add)
+
+    p = sub.add_parser("random", help="import random pieces from a source (or all sources)")
+    p.add_argument("--count", type=int, default=5)
+    p.add_argument("--source")
+    p.add_argument("--all", action="store_true", help="draw from every source")
+    p.add_argument("--top", action="store_true", help="prefer highly rated pieces (sources with ratings only)")
+    p.add_argument("--seed", type=int)
+    p.set_defaults(func=cmd_random)
+
+    p = sub.add_parser("index", help="build/inspect a source's rating index (used by random --top)")
+    p.add_argument("op", choices=["build", "status"])
+    p.add_argument("--source", required=True)
+    p.add_argument("--limit", type=int, help="only crawl this many pages (testing)")
+    p.set_defaults(func=cmd_index)
 
     p = sub.add_parser("fetch", help="fetch catalog entries into the library (or --into a bundle dir)")
     p.add_argument("--catalog", default=str(paths.CATALOG))

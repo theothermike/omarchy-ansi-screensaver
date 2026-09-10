@@ -43,6 +43,8 @@ def import_fetched(provider, entry_id: str, f: Fetched, args=None, tags=None) ->
     if c.tags:
         norm.meta["tags"] = sorted(set((norm.meta.get("tags") or []) + list(c.tags) + list(tags or [])))
     ov = _overrides(args, f) if args else {}
+    if f.rating:
+        norm.meta["rating"] = dict(f.rating)
     return L.store(norm, f.data, source=_source_meta(provider, entry_id, f), overrides=ov, force=kw["force"])
 
 
@@ -189,4 +191,135 @@ def cmd_preview_source(args) -> int:
         res["notice"] = "Pillow missing: no preview image"
     meta_p.write_text(json.dumps(res))
     emit(args, res)
+    return 0
+
+
+def _pick_sources(args, cfg):
+    if getattr(args, "all", False) or not getattr(args, "source", None):
+        srcs = registry.instances(cfg)
+    else:
+        srcs = [registry.get(args.source, cfg)]
+    if getattr(args, "top", False):
+        srcs = [s for s in srcs if s.caps.has_ratings]
+        if not srcs:
+            raise SourceError("no selected source has ratings (only asciiart.eu does)")
+    return srcs
+
+
+def _history_path():
+    return paths.SOURCES_CACHE / "random-history.json"
+
+
+def _load_history() -> set[str]:
+    try:
+        return set(json.loads(_history_path().read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        return set()
+
+
+def _save_history(h: set[str]) -> None:
+    try:
+        _history_path().parent.mkdir(parents=True, exist_ok=True)
+        _history_path().write_text(json.dumps(sorted(h)[-20000:]), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def cmd_random(args) -> int:
+    """Import N random pieces from one source or all of them (round-robin);
+    --top restricts to highly rated items where a source has ratings."""
+    import random
+    cfg = C.load()
+    try:
+        srcs = _pick_sources(args, cfg)
+    except (KeyError, SourceError) as e:
+        return fail(args, str(e))
+    n = max(1, int(args.count or 1))
+    rng = random.Random(args.seed) if getattr(args, "seed", None) else random.Random()
+    prog = Progress(args.progress)
+    history = _load_history()
+    result: dict = {"added": [], "skipped": [], "failed": [], "sources": [s.id for s in srcs]}
+    order = list(srcs)
+    rng.shuffle(order)
+    i = 0
+    done = 0
+    stalled: dict[str, int] = {}
+    while done < n and order:
+        src = order[i % len(order)]
+        i += 1
+        if stalled.get(src.id, 0) >= 4:
+            order = [s for s in order if s.id != src.id]
+            continue
+        prog(done + 1, n, f"picking from {src.label}")
+        try:
+            items = src.random_items(1, rng, top=bool(getattr(args, "top", False)))
+        except Offline as e:
+            result["failed"].append({"source": src.id, "reason": f"offline: {e}"})
+            stalled[src.id] = 99
+            continue
+        except SourceError as e:
+            result["failed"].append({"source": src.id, "reason": str(e)})
+            stalled[src.id] = 99
+            continue
+        except Exception as e:  # noqa: BLE001
+            result["failed"].append({"source": src.id, "reason": str(e)})
+            stalled[src.id] = stalled.get(src.id, 0) + 1
+            continue
+        if not items:
+            stalled[src.id] = stalled.get(src.id, 0) + 1
+            continue
+        item = items[0]
+        key = f"{src.id}:{item.id}"
+        if key in history:
+            stalled[src.id] = stalled.get(src.id, 0) + 1
+            continue
+        try:
+            f = src.fetch(item.id)
+            meta, created = import_fetched(src, item.id, f, None, tags=["random"] + (["top-rated"] if getattr(args, "top", False) else []))
+        except Exception as e:  # noqa: BLE001
+            result["failed"].append({"source": src.id, "entry": item.id, "reason": str(e)})
+            stalled[src.id] = stalled.get(src.id, 0) + 1
+            continue
+        history.add(key)
+        if created:
+            done += 1
+            stalled[src.id] = 0
+            result["added"].append({"source": src.id, "id": meta["id"], "title": meta.get("title"), "entry": item.id})
+            prog(done, n, f"{src.label}: {meta.get('title') or item.label}")
+        else:
+            result["skipped"].append({"source": src.id, "id": meta["id"], "reason": "duplicate"})
+            stalled[src.id] = stalled.get(src.id, 0) + 1
+    _save_history(history)
+    if args.progress:
+        prog.done(result)
+    else:
+        human = "\n".join([f"added   {r['id']:44} {r['source']:14} {r.get('title') or ''}" for r in result["added"]]
+                          + [f"skipped {r['id']} (duplicate)" for r in result["skipped"]]
+                          + [f"FAILED  {r['source']}: {r['reason']}" for r in result["failed"]]) or "nothing added"
+        emit(args, result, human)
+    return 0 if result["added"] else 1
+
+
+def cmd_index(args) -> int:
+    cfg = C.load()
+    try:
+        provider = registry.get(args.source, cfg)
+    except KeyError:
+        return fail(args, f"unknown source {args.source}")
+    if args.op == "status":
+        emit(args, provider.index_status())
+        return 0
+    prog = Progress(args.progress)
+    try:
+        res = provider.index_build(progress=prog, limit=getattr(args, "limit", None))
+    except Offline as e:
+        return fail(args, f"offline: {e}", 3)
+    except SourceError as e:
+        return fail(args, str(e))
+    from ..config import touch_revision
+    touch_revision()
+    if args.progress:
+        prog.done(res)
+    else:
+        emit(args, res, f"indexed {res.get('items')} items from {res.get('pages')} pages -> {res.get('path')}")
     return 0

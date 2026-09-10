@@ -50,7 +50,7 @@ Omarchy's screensaver-off toggle or stay-awake is set.
 | Tab | What you do there |
 |---|---|
 | Gallery | thumbnails of the library; search, filter, sort; hover for a full render; enable/disable, star, remove, preview; import files/folders/zips/URLs |
-| Sources | one tree browser for every art source: open packs/categories, see thumbnails or text previews, **Add** a piece or **Add all** of a pack; add your own GitHub repos / HTTP indexes |
+| Sources | one tree browser for every art source: open packs/categories, see thumbnails or text previews (**Preview all** renders the rest on demand), **Add** a piece or **Add all** of a pack; **Random import** N pieces from this source or all of them (walks each catalogue at random, never repeats a pick), or the **highest rated** where a source has ratings (asciiart.eu likes/views — build its rating index once); sort by rating; add your own GitHub repos / HTTP indexes |
 | Effects | which ttfx effects and out-transitions play (weights in `config.json`), reveal mix (ttfx vs. baud), colour handling, baud rate, speed; right-click an effect to preview it |
 | Settings | hold time, scroll speed, order, caption, columns, font, multi-monitor, **Omarchy's idle timeouts** (screensaver / lock, preset dropdown or exact seconds — written to `shell.json` through `omarchy-shell-config`), idle takeover (+ a 10 s test), maintenance |
 
@@ -71,6 +71,7 @@ ansi-screensaver import <file|dir|zip|url>... [--encoding cp437|latin1|utf8] [--
 ansi-screensaver sources list|add --kind github_repo|http_index --url ...|remove ID
 ansi-screensaver browse --source ID [--path SEG]... [--search Q] [--page N] [--details]
 ansi-screensaver add --source ID --entry EID [--all]     preview --source ID --entry EID
+ansi-screensaver random --count N [--source ID | --all] [--top]      index build|status --source ID
 ansi-screensaver idle get | set [--screensaver S] [--lock S]        # Omarchy's own timeouts (shell.json)
 ansi-screensaver config get|set|dump    doctor [--network]    snapshot    seed    thumbs
 ansi-screensaver fonts install|status   install [--fonts] [--seed]
