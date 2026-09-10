@@ -108,32 +108,41 @@ Item {
                                 && !root.stayAwake && root.screensaverSeconds > 0
   property bool launchedThisCycle: false
 
-  // The real takeover monitor. Disabled while a test runs so the two never
-  // race; re-enabling registers a fresh idle notification with the compositor.
-  IdleMonitor {
-    id: idleMonitor
-    enabled: root.armed && root.testSeconds === 0
-    timeout: root.timeoutSeconds
-    respectInhibitors: true
-    onIsIdleChanged: root.handleIdle(isIdle, false)
+  // Idle monitors are created on demand: a monitor whose `enabled` flips on
+  // after creation never registers with the compositor (verified), so every
+  // change of armed state / timeout tears the old one down and builds a new
+  // one with `enabled: true` from the start.
+  property var monitor: null
+  property bool monitorIsTest: false
+  readonly property bool monitorActive: !!monitor
+  Component {
+    id: monitorFactory
+    IdleMonitor {
+      property bool isTest: false
+      enabled: true
+      respectInhibitors: !isTest
+      onIsIdleChanged: root.handleIdle(isIdle, isTest)
+    }
   }
-  // "Test in N s": a separate monitor created on demand, so the timeout
-  // change always takes effect.
-  IdleMonitor {
-    id: testMonitor
-    enabled: root.testSeconds > 0
-    timeout: root.testSeconds > 0 ? root.testSeconds : 60
-    respectInhibitors: false
-    onIsIdleChanged: root.handleIdle(isIdle, true)
+  function rebuildMonitor() {
+    if (root.monitor) { root.monitor.destroy(); root.monitor = null }
+    var test = root.testSeconds > 0
+    if (!test && !root.armed) return
+    root.monitor = monitorFactory.createObject(root, { timeout: test ? root.testSeconds : root.timeoutSeconds, isTest: test })
+    root.monitorIsTest = test
+    root.launchedThisCycle = false
   }
+  onArmedChanged: rebuildMonitor()
+  onTimeoutSecondsChanged: rebuildMonitor()
+  onTestSecondsChanged: rebuildMonitor()
 
   function handleIdle(isIdle, isTest) {
     if (isIdle) {
       if (root.launchedThisCycle) return
       root.launchedThisCycle = true
-      if (isTest) root.testSeconds = 0
       root.logEvent(isTest ? "idle test fired" : "idle -> launch")
       root.launch(isTest)
+      if (isTest) root.testSeconds = 0
     } else {
       root.launchedThisCycle = false
     }
@@ -346,7 +355,8 @@ Item {
     return JSON.stringify({
       armed: root.armed, takeoverEnabled: root.takeoverEnabled, screensaverOff: root.screensaverOff,
       stayAwake: root.stayAwake, flagsLoaded: root.flagsLoaded, screensaverSeconds: root.screensaverSeconds,
-      leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: idleMonitor.isIdle, testIdle: testMonitor.isIdle,
+      leadSeconds: root.leadSeconds, timeoutSeconds: root.timeoutSeconds, idle: root.monitor ? root.monitor.isIdle : false,
+      monitorActive: root.monitorActive, monitorTimeout: root.monitor ? root.monitor.timeout : null, monitorIsTest: root.monitorIsTest,
       launchedThisCycle: root.launchedThisCycle, testSeconds: root.testSeconds,
       library: root.library.length, loading: root.loading, error: root.lastError, lastEvent: root.lastEvent,
       job: root.job ? { name: root.job.name, n: root.job.n, total: root.job.total, label: root.job.label } : null
@@ -356,6 +366,7 @@ Item {
   Component.onCompleted: {
     root.reload()
     flagsProbe.running = true
+    root.rebuildMonitor()
   }
 
   IpcHandler {

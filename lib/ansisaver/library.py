@@ -17,7 +17,8 @@ from . import sauce as S
 from .config import touch_revision
 from .grid import Grid, grid_to_flat, read_flat
 
-ART_EXTS = (".ans", ".asc", ".txt", ".nfo", ".diz", ".ansi")
+ART_EXTS = (".ans", ".asc", ".txt", ".nfo", ".diz", ".ansi", ".ice", ".acd", ".cia", ".dds", ".mir", ".rem", ".fir", ".fire", ".blk",
+            ".bld", ".lit", ".msg", ".art", ".lgc", ".tpa", ".tri", ".imp", ".fuel", ".ess", ".law", ".dez", ".bad", ".goa", ".kts")
 REJECT_EXTS = (".xb", ".bin", ".rip", ".pcb", ".avt", ".png", ".gif", ".jpg", ".jpeg", ".mp4", ".mp3", ".it", ".xm", ".mod", ".s3m", ".zip", ".exe", ".com")
 
 
@@ -73,7 +74,7 @@ def normalize(data: bytes, filename: str, *, encoding: str | None = None, wrap: 
     if columns is None:
         columns = sauce.columns if sauce else None
         if columns is None:
-            columns = 80 if ext in (".ans", ".ansi") else 0
+            columns = 0 if ext in (".asc", ".txt", ".nfo", ".diz") else 80
     it = A.Interpreter(cols=columns, ice=bool(sauce.ice) if sauce else False, wrap=wrap)
     if not bce:
         it.fill = lambda x0, x1, y: None  # type: ignore[assignment]

@@ -77,8 +77,17 @@ class SourceError(Exception):
     pass
 
 
+# .ans/.asc plus the pack-specific extensions 1990s groups used for their ANSIs
+SCENE_EXTS = {"ans", "asc", "txt", "nfo", "diz", "ansi", "ice", "acd", "cia", "dds", "mir", "rem", "fir", "fire", "blk",
+              "bld", "lit", "msg", "art", "lgc", "tpa", "tri", "imp", "fuel", "ess", "law", "dez", "bad", "goa", "kts",
+              "zaz", "gdt", "dsx", "clr", "fzl", "sac", "spd", "mim", "avg", "mo", "odl", "pgn", "gro", "hrt", "sfc",
+              "sbn", "nwa", "dark", "trbl", "jed", "ext", "sdl", "ptk", "fst", "fli"}
+
+
 def is_art_name(name: str) -> bool:
-    return name.lower().rsplit(".", 1)[-1] in ("ans", "asc", "txt", "nfo", "diz", "ansi") if "." in name else False
+    if "." not in name:
+        return False
+    return name.lower().rsplit(".", 1)[-1] in SCENE_EXTS
 
 
 class Provider:

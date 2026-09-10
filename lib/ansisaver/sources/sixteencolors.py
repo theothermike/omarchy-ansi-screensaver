@@ -189,7 +189,7 @@ class SixteenColors(Provider):
                 type="item", id=f"file/{pack}/{name}", label=_s(sauce.get("Title")) or name,
                 sublabel=" · ".join(s for s in [author, _s(sauce.get("Group"))] if s),
                 meta={"author": author, "group": _s(sauce.get("Group")), "year": year,
-                      "cols": sauce.get("Tinfo1") or (80 if low.endswith((".ans", ".ansi")) else None),
+                      "cols": sauce.get("Tinfo1") or (None if low.endswith((".asc", ".txt")) else 80),
                       "rows": sauce.get("Tinfo2"), "size": sauce.get("Filesize"),
                       "format": "ansi" if low.endswith((".ans", ".ansi")) else "ascii", "ice": bool(flags.get("ice")),
                       "font": sauce.get("Tinfos") or "", "tags": f.get("content") or [], "file": name},

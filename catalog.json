@@ -414,6 +414,58 @@
       "category": "ascii",
       "tags": [],
       "credits": {}
+    },
+    {
+      "source": "sixteencolors",
+      "entry": "file/ice9606a/DT-23.ICE",
+      "pack": "ice9606a",
+      "file": "DT-23.ICE",
+      "category": "classic",
+      "tags": [
+        "ice"
+      ],
+      "credits": {
+        "group": "iCE"
+      }
+    },
+    {
+      "source": "sixteencolors",
+      "entry": "file/ice9607a/CU-ANKH.ICE",
+      "pack": "ice9607a",
+      "file": "CU-ANKH.ICE",
+      "category": "classic",
+      "tags": [
+        "ice"
+      ],
+      "credits": {
+        "group": "iCE"
+      }
+    },
+    {
+      "source": "sixteencolors",
+      "entry": "file/ice9607a/CU-HAV.ICE",
+      "pack": "ice9607a",
+      "file": "CU-HAV.ICE",
+      "category": "classic",
+      "tags": [
+        "ice"
+      ],
+      "credits": {
+        "group": "iCE"
+      }
+    },
+    {
+      "source": "sixteencolors",
+      "entry": "file/ice9606a/TE-RUST1.ICE",
+      "pack": "ice9606a",
+      "file": "TE-RUST1.ICE",
+      "category": "classic",
+      "tags": [
+        "ice"
+      ],
+      "credits": {
+        "group": "iCE"
+      }
     }
   ]
 }

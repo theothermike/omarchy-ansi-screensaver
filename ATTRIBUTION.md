@@ -26,6 +26,10 @@ Generated 2026-09-10 from `art/*/meta.json` by `ansi-screensaver attribution`.
 | Night City Group | Multiple Artists | ACiD Productions | 1997 | acid-55a | [sixteencolors](https://16colo.rs/pack/acid-55a/US-NCG2.ANS) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
 | Prevail | Baltazar | ACiD Productions | 1997 | acid-55a | [sixteencolors](https://16colo.rs/pack/acid-55a/B2-PREVL.ANS) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
 | Star Wars Tribute - Darth Vader | Outkast | ACiD Productions | 1996 | acid-52 | [sixteencolors](https://16colo.rs/pack/acid-52/OK-DARTH.ANS) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
+| Ankh | Cold and Ugly | iCE | 1996 | ice9607a | [sixteencolors](https://16colo.rs/pack/ice9607a/CU-ANKH.ICE) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
+| DT-23 | defiant | iCE | 1996 | ice9606a | [sixteencolors](https://16colo.rs/pack/ice9606a/DT-23.ICE) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
+| TE-RUST1 | tetanus | iCE | 1996 | ice9606a | [sixteencolors](https://16colo.rs/pack/ice9606a/TE-RUST1.ICE) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
+| The Haven | Cold and Ugly | iCE | 1996 | ice9607a | [sixteencolors](https://16colo.rs/pack/ice9607a/CU-HAV.ICE) | Artwork remains the artist's intellectual property; distributed via the 16colo.rs archive with SAUCE credits preserved. |
 
 ## modern
 
