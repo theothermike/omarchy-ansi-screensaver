@@ -78,7 +78,7 @@ class Terminal:
         self.write("\x1b[?1049h\x1b[?25l")
         if self.mouse:
             self.write("\x1b[?1006h\x1b[?1003h")
-        self.write("\x1b[2J\x1b[H")
+        self.write("\x1b[0m\x1b[2J\x1b[H")
         self.flush()
         self._entered = True
         if self.use_hypr:
@@ -138,7 +138,9 @@ class Terminal:
             view = view[n:]
 
     def clear(self) -> None:
-        self.write("\x1b[2J\x1b[H")
+        # erase and scroll operations fill with the *current* background
+        # (background-colour-erase), so every one of them resets first
+        self.write("\x1b[0m\x1b[2J\x1b[H")
         self.flush()
 
     # -- dismissal --------------------------------------------------------
@@ -226,14 +228,14 @@ class Painter:
         """Scroll the screen one line and draw `new_row` at the bottom."""
         t = self.term
         s = row_to_sgr(new_row, upto=self.fit(new_row, pad), pad=pad)
-        t.write(f"\x1b[S\x1b[{t.rows};1H{s}\x1b[K")
+        t.write(f"\x1b[0m\x1b[S\x1b[{t.rows};1H{s}\x1b[K")
         t.flush()
         if self.cache:
             self.cache = self.cache[1:] + [s]
 
     def scroll_blank(self) -> None:
         """Scroll one line; the new bottom line is left empty."""
-        self.term.write("\x1b[S")
+        self.term.write("\x1b[0m\x1b[S")
         self.term.flush()
         if self.cache:
             self.cache = self.cache[1:] + [""]

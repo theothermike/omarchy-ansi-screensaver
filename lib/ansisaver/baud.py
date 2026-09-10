@@ -29,7 +29,11 @@ class TermSink:
         n = top - self.top
         if n <= 0:
             return
-        self.pending.append(f"\x1b[{self.rows};1H" + "\n" * n)
+        # Reset first: with background-colour-erase the terminal paints the
+        # lines it scrolls in with the current background, full width --
+        # coloured bars beyond the art. The next cell re-emits its colours.
+        self.pending.append(f"\x1b[0m\x1b[{self.rows};1H" + "\n" * n)
+        self.fg = self.bg = None
         self.top = top
         self.last = None
 
@@ -120,9 +124,8 @@ def play(show, meta: dict, grid, x_off: int, y_off: int) -> int:
         due = pos / cps
         term.poll(max(0.0, due - elapsed))
     sink.flush()
-    if show_cursor:
-        term.write("\x1b[?25l")
-        term.flush()
+    term.write("\x1b[0m" + ("\x1b[?25l" if show_cursor else ""))  # leave no colour armed
+    term.flush()
     top = sink.top
     # the terminal now shows grid rows [top-y_off, ...]; prime the painter
     from .grid import compose
