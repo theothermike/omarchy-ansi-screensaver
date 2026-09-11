@@ -385,6 +385,7 @@ def run(args) -> int:
         return 1
     term = Terminal(args.window_class, use_hypr=not args.no_hypr)
     term.install_signals()
+    hide_pointer = args.window_class == paths.SCREENSAVER_CLASS and not args.no_hypr
     rc = 0
     try:
         term.wait_for_resize()
@@ -393,6 +394,14 @@ def run(args) -> int:
             from .sizing import record_calibration
             record_calibration(args.monitor, args.font_kind or "unknown", float(args.font_pt), term.cols, term.rows)
         term.enter()
+        # Hide the pointer like the stock screensaver does. Ours has to do it
+        # (and undo it below) itself: on takeover the stock script is frozen
+        # and killed, so its exit trap that clears the flag never runs.
+        if hide_pointer:
+            try:
+                hypr.cursor_invisible(True)
+            except Exception:  # noqa: BLE001
+                pass
         show = Slideshow(args, cfg, theme, pieces, term, session)
         empty_streak = 0
         while True:
@@ -411,6 +420,11 @@ def run(args) -> int:
         rc = 1
     finally:
         term.exit()
+        if hide_pointer:
+            try:
+                hypr.cursor_invisible(False)
+            except Exception:  # noqa: BLE001
+                pass
         try:
             show_file = paths.RUNTIME_DIR / f"slide-{os.getpid()}.ans"
             show_file.unlink(missing_ok=True)
